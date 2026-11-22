@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scratch Profile Viewer</title>
+  <link rel="stylesheet" href="https://cdn.scratch.mit.edu/scratchr2/static/__0b77027edd8c5758537a8bc19a9ae817__/css/main.css">
+  <link rel="stylesheet" href="https://cdn.scratch.mit.edu/scratchr2/static/__0b77027edd8c5758537a8bc19a9ae817__/css/pages/profile.css">
+  <style>
+    #profile-data .loading-img { display: none; }
+    .error-message { color: #d9534f; padding: 10px; font-weight: bold; background: #fdf7f7; border: 1px solid #d9534f; border-radius: 4px; }
+    #topnav .logo { display: inline-flex; align-items: center; margin-top: 8px; text-decoration: none; color: white; font-size: 24px; font-weight: bold; }
+    #topnav .logo img { height: 35px; margin-right: 10px; }
+    .loading-info { padding: 10px; background: #e3f2fd; margin-bottom: 10px; border-radius: 4px; color: #0d47a1; }
+  </style>
+</head>
+<body>
+  <div id="pagewrapper">
+    <div id="topnav">
+      <div class="innerwrap">
+        <div class="container">
+          <a href="https://scratch.mit.edu/" class="logo">
+            <img src="https://scratch.mit.edu/images/logo_sm.png" alt="Scratch Logo">
+          </a>
+          <ul class="site-nav">
+            <li><a href="https://scratch.mit.edu/projects/editor/">Create</a></li>
+            <li><a href="https://scratch.mit.edu/explore/projects/all">Explore</a></li>
+            <li class="last"><a href="https://scratch.mit.edu/ideas">Ideas</a></li>
+          </ul>
+          <form class="search" id="profile-search-form" style="position: relative;">
+            <input type="submit" class="glass" value="" style="cursor: pointer;">
+            <input id="search-input" type="text" placeholder="Search username" name="q" value="-ColossAnimations-">
+          </form>
+          <ul class="account-nav">
+            <li class="join-scratch"><a href="https://scratch.mit.edu/join">Join Scratch</a></li>
+            <li id="login-dropdown" class="sign-in dropdown">
+              <span data-toggle="dropdown" class="dropdown-toggle"><span>Sign in</span></span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="container" id="content" style="margin-top: 20px;">
+      <div id="alert-view"></div>
+
+      <div class="box" id="profile-data">
+        <div class="box-head">
+          <form id="profile-avatar" class="portrait">
+            <div class="avatar-wrapper">
+              <a href="#" id="profile-avatar-link">
+                <img id="profile-avatar-img" src="https://cdn2.scratch.mit.edu/get_image/user/143563846_60x60.png" width="55" height="55">
+              </a>
+            </div>
+          </form>
+          <div class="header-text">
+            <h2 id="profile-username">Loading...</h2>
+            <p class="profile-details">
+              <span class="group">Scratcher</span>
+              Joined <span id="profile-join-date" title="">Unknown</span>
+              <span class="location" id="profile-country"></span>
+            </p>
+          </div>
+        </div>
+        <div class="box-content" id="profile-box">
+          <div class="action-bar"></div>
+          <div class="inner clearfix">
+            <div class="user-content">
+              <div id="user-details" class="about">
+                <h3>About me</h3>
+                <div id="bio-readonly" class="read-only">
+                  <div class="viewport" style="overflow: auto; max-height: 150px;">
+                    <p class="overview" id="profile-bio">Loading bio...</p>
+                  </div>
+                </div>
+                <h3>What I'm working on</h3>
+                <div id="status-readonly" class="read-only">
+                  <div class="viewport" style="overflow: auto; max-height: 100px;">
+                    <p class="overview" id="profile-status"></p>
+                  </div>
+                </div>
+              </div>
+              <div class="player">
+                <h3 class="featured-project-heading">Featured Project</h3>
+                <div class="stage" style="width: 282px;">
+                  <a href="#" id="featured-project-link">
+                    <img id="featured-project-img" src="https://cdn2.scratch.mit.edu/get_image/project/1147906174_282x210.png" width="282" height="210" alt="Featured project" style="background: #f2f2f2; object-fit: cover;">
+                  </a>
+                </div>
+                <span class="title">
+                  <a class="project-name" id="featured-project-title" href="#">Loading...</a>
+                </span>
+              </div>
+            </div>
+            <div class="doing">
+              <h3>What I've been doing</h3>
+              <div id="activity-feed">
+                <ul class="activity-stream"></ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="box slider-carousel-container prevent-select" style="margin-top: 20px;">
+        <div class="box-head">
+          <h4>Shared Projects (<span id="shared-count">0</span>)</h4>
+          <a href="#" data-control="view-all">View all</a>
+        </div>
+        <div class="box-content" id="shared" style="min-height: 154.5px;">
+          <div class="viewport" style="overflow: hidden;">
+            <ul class="scroll-content" id="shared-projects-list" style="display: flex; flex-wrap: wrap; gap: 15px; padding: 15px;">
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      const API_BASE = 'https://api.scratch.mit.edu/users/';
+      
+      // Updated proxy list, prioritizing corsproxy.io which is currently active
+      const PROXIES = [
+        { url: 'https://corsproxy.io/?', type: 'raw' },
+        { url: 'https://api.allorigins.win/raw?url=', type: 'raw' },
+        { url: 'https://api.codetabs.com/v1/proxy?quest=', type: 'raw' },
+        { url: 'https://cors-anywhere.herokuapp.com/', type: 'raw' }
+      ];
+
+      async function fetchWithProxy(targetUrl) {
+        for (let i = 0; i < PROXIES.length; i++) {
+          const proxy = PROXIES[i];
+          let requestUrl = proxy.url + encodeURIComponent(targetUrl);
+
+          try {
+            console.log(`Trying proxy ${i + 1}: ${requestUrl}`);
+            const response = await fetch(requestUrl);
+            if (response.ok) {
+              const text = await response.text();
+              if (text && text.trim().length > 0) {
+                try {
+                  return JSON.parse(text);
+                } catch (e) {
+                  console.warn(`Proxy ${i + 1} returned invalid JSON, trying next...`);
+                }
+              }
+            }
+          } catch (err) {
+            console.warn(`Proxy ${i + 1} failed: ${err.message}`);
+          }
+        }
+        throw new Error('All proxies failed to fetch data. Please try again later.');
+      }
+
+      function formatJoinDate(joinedIso) {
+        if (!joinedIso) return 'Unknown';
+        const joined = new Date(joinedIso);
+        const now = new Date();
+        let years = now.getFullYear() - joined.getFullYear();
+        let months = now.getMonth() - joined.getMonth();
+        if (months < 0) { years--; months += 12; }
+        const parts = [];
+        if (years > 0) parts.push(years + ' year' + (years > 1 ? 's' : ''));
+        if (months > 0) parts.push(months + ' month' + (months > 1 ? 's' : ''));
+        return parts.length ? parts.join(', ') + ' ago' : 'just now';
+      }
+
+      function createProjectItem(project) {
+        const li = document.createElement('li');
+        li.className = 'project thumb item';
+        li.style.width = '144px';
+        li.style.margin = '0';
+        const imgSrc = project.image || 'https://cdn2.scratch.mit.edu/get_image/project/1147906174_144x108.png';
+        li.innerHTML = `
+          <a href="https://scratch.mit.edu/projects/${project.id}/" target="_blank">
+            <img class="lazy image" src="${imgSrc}" width="144" height="108" style="display: block; object-fit: cover;">
+          </a>
+          <span class="title" style="display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 5px 0;">
+            <a href="https://scratch.mit.edu/projects/${project.id}/" target="_blank" style="font-weight: bold; color: #575e75;">${project.title}</a>
+          </span>
+        `;
+        return li;
+      }
+
+      async function loadProfile(username) {
+        if (!username) return;
+        const alertBox = document.getElementById('alert-view');
+        alertBox.innerHTML = '<div class="loading-info">Loading profile for <strong>' + username + '</strong>...</div>';
+
+        try {
+          const user = await fetchWithProxy(API_BASE + username + '/');
+          alertBox.innerHTML = '';
+
+          document.getElementById('profile-username').textContent = user.username;
+          if (user.profile && user.profile.images && user.profile.images['60x60']) {
+            document.getElementById('profile-avatar-img').src = user.profile.images['60x60'];
+          } else {
+            document.getElementById('profile-avatar-img').src = 'https://cdn2.scratch.mit.edu/get_image/user/default_60x60.png';
+          }
+          document.getElementById('profile-avatar-link').href = `https://scratch.mit.edu/users/${user.username}/`;
+
+          const joinedIso = user.history && user.history.joined;
+          document.getElementById('profile-join-date').textContent = formatJoinDate(joinedIso);
+          document.getElementById('profile-join-date').title = joinedIso ? joinedIso.split('T')[0] : '';
+          document.getElementById('profile-country').textContent = user.profile.country || '';
+          document.getElementById('profile-bio').innerHTML = user.profile.bio || '<em>No bio provided.</em>';
+          document.getElementById('profile-status').innerHTML = user.profile.status || '<em>No status provided.</em>';
+
+          const projects = await fetchWithProxy(API_BASE + username + '/projects?limit=20');
+
+          if (projects && projects.length > 0) {
+            const featured = projects[0];
+            document.getElementById('featured-project-img').src = featured.image;
+            document.getElementById('featured-project-title').textContent = featured.title;
+            document.getElementById('featured-project-title').href = `https://scratch.mit.edu/projects/${featured.id}/`;
+            document.getElementById('featured-project-link').href = `https://scratch.mit.edu/projects/${featured.id}/`;
+          } else {
+            document.getElementById('featured-project-img').src = 'https://cdn2.scratch.mit.edu/get_image/project/1147906174_282x210.png';
+            document.getElementById('featured-project-title').textContent = 'No projects yet';
+            document.getElementById('featured-project-title').href = '#';
+            document.getElementById('featured-project-link').href = '#';
+          }
+
+          const sharedList = document.getElementById('shared-projects-list');
+          sharedList.innerHTML = '';
+          if (projects) {
+            projects.forEach(p => sharedList.appendChild(createProjectItem(p)));
+          }
+          document.getElementById('shared-count').textContent = projects ? projects.length : 0;
+
+        } catch (err) {
+          alertBox.innerHTML = `<div class="error-message">Error: ${err.message}</div>`;
+          console.error(err);
+        }
+      }
+
+      document.getElementById('profile-search-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const username = document.getElementById('search-input').value.trim();
+        if (username) loadProfile(username);
+      });
+
+      window.addEventListener('load', () => {
+        const defaultUser = document.getElementById('search-input').value.trim();
+        if (defaultUser) loadProfile(defaultUser);
+      });
+    })();
+  </script>
+</body>
+</html>
