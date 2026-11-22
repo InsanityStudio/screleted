@@ -135,7 +135,31 @@
   <!-- JavaScript to fetch and display profile data -->
   <script>
     (function() {
-      const API_BASE = 'https://api.scratch.mit.edu/users/';
+      // We use a free CORS proxy to bypass the browser's Same-Origin Policy 
+      // which blocks direct fetch() requests to api.scratch.mit.edu from GitHub Pages.
+      const SCRATCH_API_BASE = 'https://api.scratch.mit.edu';
+      const CORS_PROXY = 'https://api.allorigins.win/get?url=';
+
+      // Helper function to fetch data through the CORS proxy
+      async function fetchScratchAPI(endpoint) {
+        const targetUrl = SCRATCH_API_BASE + endpoint;
+        const proxyUrl = CORS_PROXY + encodeURIComponent(targetUrl);
+        
+        const response = await fetch(proxyUrl);
+        if (!response.ok) {
+          throw new Error('Network response from proxy was not ok');
+        }
+        
+        const proxyData = await response.json();
+        
+        // AllOrigins returns the actual HTTP status code of the target URL
+        if (proxyData.status.http_code !== 200) {
+          throw new Error(`User or resource not found (HTTP ${proxyData.status.http_code})`);
+        }
+        
+        // Parse the stringified JSON contents returned by the proxy
+        return JSON.parse(proxyData.contents);
+      }
 
       // Utility: format date difference (e.g., "2 years, 1 month ago")
       function formatJoinDate(joinedIso) {
@@ -184,12 +208,8 @@
         alertBox.innerHTML = '<div style="padding: 10px; background: #e3f2fd; margin-bottom: 10px;">Loading profile for <strong>' + username + '</strong>...</div>';
         
         try {
-          // Fetch user data
-          const response = await fetch(API_BASE + encodeURIComponent(username) + '/');
-          if (!response.ok) {
-            throw new Error(`User “${username}” not found (HTTP ${response.status})`);
-          }
-          const user = await response.json();
+          // Fetch user data via proxy
+          const user = await fetchScratchAPI('/users/' + encodeURIComponent(username));
           
           alertBox.innerHTML = ''; // clear loading
 
@@ -211,15 +231,11 @@
           document.getElementById('profile-bio').innerHTML = user.profile.bio || '<em>No bio provided.</em>';
           document.getElementById('profile-status').innerHTML = user.profile.status || '<em>No status provided.</em>';
 
-          // Fetch projects
-          const projectsRes = await fetch(API_BASE + encodeURIComponent(username) + '/projects?limit=20');
-          let projects = [];
-          if (projectsRes.ok) {
-            projects = await projectsRes.json();
-          }
+          // Fetch projects via proxy
+          const projects = await fetchScratchAPI('/users/' + encodeURIComponent(username) + '/projects?limit=20');
 
           // Featured Project
-          if (projects.length > 0) {
+          if (projects && projects.length > 0) {
             const featured = projects[0];
             document.getElementById('featured-project-img').src = featured.image;
             document.getElementById('featured-project-title').textContent = featured.title;
@@ -235,12 +251,16 @@
           // Shared projects carousel
           const sharedList = document.getElementById('shared-projects-list');
           sharedList.innerHTML = '';
-          projects.forEach(p => sharedList.appendChild(createProjectItem(p)));
-          document.getElementById('shared-count').textContent = projects.length;
+          if (projects) {
+            projects.forEach(p => sharedList.appendChild(createProjectItem(p)));
+            document.getElementById('shared-count').textContent = projects.length;
+          } else {
+            document.getElementById('shared-count').textContent = '0';
+          }
 
         } catch (err) {
           alertBox.innerHTML = `<div class="error-message">Error: ${err.message}</div>`;
-          console.error(err);
+          console.error('Profile load error:', err);
         }
       }
 
