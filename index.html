@@ -4,14 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Scratch Profile Viewer</title>
-  <!-- Load the original Scratch styles for an authentic look -->
   <link rel="stylesheet" href="https://cdn.scratch.mit.edu/scratchr2/static/__0b77027edd8c5758537a8bc19a9ae817__/css/main.css">
   <link rel="stylesheet" href="https://cdn.scratch.mit.edu/scratchr2/static/__0b77027edd8c5758537a8bc19a9ae817__/css/pages/profile.css">
   <style>
-    /* Minor adjustments for the demo */
     #profile-data .loading-img { display: none; }
     .error-message { color: #d9534f; padding: 10px; font-weight: bold; }
-    /* Fix broken logo icon */
     #topnav .logo {
         background: none;
         width: 100px;
@@ -23,11 +20,9 @@
 </head>
 <body>
   <div id="pagewrapper">
-    <!-- Top navigation -->
     <div id="topnav">
       <div class="innerwrap">
         <div class="container">
-          <!-- Replaced broken CSS logo with direct image -->
           <a href="https://scratch.mit.edu/" class="logo">
             <img src="https://cdn.scratch.mit.edu/scratchr2/static/__0b77027edd8c5758537a8bc19a9ae817__/images/logo.png" alt="Scratch Logo" style="height: 30px; margin-top: 10px;">
           </a>
@@ -36,7 +31,6 @@
             <li><a href="https://scratch.mit.edu/explore/projects/all">Explore</a></li>
             <li class="last"><a href="https://scratch.mit.edu/ideas">Ideas</a></li>
           </ul>
-          <!-- Search form -->
           <form class="search" id="profile-search-form" style="position: relative;">
             <input type="submit" class="glass" value="" style="cursor: pointer;">
             <input id="search-input" type="text" placeholder="Search username" name="q" value="-ColossAnimations-">
@@ -51,11 +45,9 @@
       </div>
     </div>
 
-    <!-- Main content container -->
     <div class="container" id="content" style="margin-top: 20px;">
       <div id="alert-view"></div>
 
-      <!-- Profile data box -->
       <div class="box" id="profile-data">
         <div class="box-head">
           <form id="profile-avatar" class="portrait">
@@ -114,7 +106,6 @@
         </div>
       </div>
 
-      <!-- Shared projects carousel -->
       <div class="box slider-carousel-container prevent-select" style="margin-top: 20px;">
         <div class="box-head">
           <h4>Shared Projects (<span id="shared-count">0</span>)</h4>
@@ -122,72 +113,106 @@
         </div>
         <div class="box-content" id="shared" style="min-height: 154.5px;">
           <div class="viewport" style="overflow: hidden;">
-            <ul class="scroll-content" id="shared-projects-list" style="display: flex; flex-wrap: wrap; gap: 10px; padding: 10px;">
-              <!-- Project items will be inserted here -->
-            </ul>
+            <ul class="scroll-content" id="shared-projects-list" style="display: flex; flex-wrap: wrap; gap: 10px; padding: 10px;"></ul>
           </div>
         </div>
       </div>
-
     </div>
   </div>
 
-  <!-- JavaScript to fetch and display profile data -->
   <script>
     (function() {
-      // We use a free CORS proxy to bypass the browser's Same-Origin Policy 
-      // which blocks direct fetch() requests to api.scratch.mit.edu from GitHub Pages.
       const SCRATCH_API_BASE = 'https://api.scratch.mit.edu';
-      const CORS_PROXY = 'https://api.allorigins.win/get?url=';
 
-      // Helper function to fetch data through the CORS proxy
-      async function fetchScratchAPI(endpoint) {
-        const targetUrl = SCRATCH_API_BASE + endpoint;
-        const proxyUrl = CORS_PROXY + encodeURIComponent(targetUrl);
-        
-        const response = await fetch(proxyUrl);
-        if (!response.ok) {
-          throw new Error('Network response from proxy was not ok');
+      // Fallback chain: if one free proxy is down (e.g. AllOrigins' 522 outage),
+      // we automatically try the next one. All are third-party services with
+      // rate limits, so this is a demo-grade solution, not production-grade.
+      const CORS_PROXIES = [
+        // AllOrigins /get: wraps the response so we can read the REAL status code
+        u => ({ url: `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`, unwrap: 'allorigins' }),
+        // ThingProxy: plain pass-through (100KB / 10 req/s limits)
+        u => ({ url: `https://thingproxy.freeboard.io/fetch/${u}`, unwrap: 'raw' }),
+        // cors.lol: plain pass-through
+        u => ({ url: `https://api.cors.lol/?url=${encodeURIComponent(u)}`, unwrap: 'raw' }),
+        // CodeTabs: plain pass-through (occasionally returns 400s)
+        u => ({ url: `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`, unwrap: 'raw' }),
+      ];
+
+      // Don't let a dead proxy hang the page for 20s like the 522 did
+      async function fetchWithTimeout(url, ms = 10000) {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), ms);
+        try {
+          return await fetch(url, { signal: ctrl.signal });
+        } finally {
+          clearTimeout(timer);
         }
-        
-        const proxyData = await response.json();
-        
-        // AllOrigins returns the actual HTTP status code of the target URL
-        if (proxyData.status.http_code !== 200) {
-          throw new Error(`User or resource not found (HTTP ${proxyData.status.http_code})`);
-        }
-        
-        // Parse the stringified JSON contents returned by the proxy
-        return JSON.parse(proxyData.contents);
       }
 
-      // Utility: format date difference (e.g., "2 years, 1 month ago")
+      async function fetchScratchAPI(endpoint) {
+        const target = SCRATCH_API_BASE + endpoint;
+        const failures = [];
+
+        for (const makeProxy of CORS_PROXIES) {
+          const { url, unwrap } = makeProxy(target);
+          try {
+            const res = await fetchWithTimeout(url);
+
+            if (!res.ok) {
+              if (res.status === 404) {
+                const e = new Error('HTTP 404'); e.notFound = true; throw e;
+              }
+              failures.push(`${new URL(url).hostname}: ${res.status}`);
+              continue; // this proxy is down/rate-limited -> try the next one
+            }
+
+            const text = await res.text();
+            let httpCode = null;
+            let payload = text;
+
+            if (unwrap === 'allorigins') {
+              // If AllOrigins' server is down, Cloudflare returns an HTML error
+              // page (and no CORS headers, which is why fetch() used to reject
+              // with "Failed to fetch"). JSON.parse below will throw and we
+              // fall through to the next proxy instead.
+              const wrapper = JSON.parse(text);
+              httpCode = wrapper.status && wrapper.status.http_code;
+              payload = wrapper.contents;
+              if (httpCode === 404) { const e = new Error('HTTP 404'); e.notFound = true; throw e; }
+              if (httpCode && httpCode >= 400) { failures.push(`allorigins: ${httpCode}`); continue; }
+            }
+
+            return { data: JSON.parse(payload), httpCode };
+          } catch (err) {
+            if (err.notFound) throw err; // a real 404 — don't try other proxies
+            failures.push(`${new URL(url).hostname}: ${err.message || 'network error'}`);
+          }
+        }
+
+        const e = new Error('All CORS proxies are down right now (' + failures.join('; ') + '). Wait a minute and search again.');
+        e.proxyOutage = true;
+        throw e;
+      }
+
       function formatJoinDate(joinedIso) {
         if (!joinedIso) return 'Unknown';
         const joined = new Date(joinedIso);
         const now = new Date();
         let years = now.getFullYear() - joined.getFullYear();
         let months = now.getMonth() - joined.getMonth();
-        if (months < 0) {
-          years--;
-          months += 12;
-        }
+        if (months < 0) { years--; months += 12; }
         const parts = [];
         if (years > 0) parts.push(years + ' year' + (years > 1 ? 's' : ''));
         if (months > 0) parts.push(months + ' month' + (months > 1 ? 's' : ''));
         return parts.length ? parts.join(', ') + ' ago' : 'just now';
       }
 
-      // Utility: create a project thumbnail item
       function createProjectItem(project) {
         const li = document.createElement('li');
         li.className = 'project thumb item';
         li.style.width = '144px';
         li.style.margin = '0';
-        
-        // Fallback for missing images
         const imgSrc = project.image || 'https://cdn2.scratch.mit.edu/get_image/project/1147906174_144x108.png';
-        
         li.innerHTML = `
           <a href="https://scratch.mit.edu/projects/${project.id}/" target="_blank">
             <img class="lazy image" src="${imgSrc}" width="144" height="108" style="display: block; object-fit: cover;">
@@ -199,23 +224,23 @@
         return li;
       }
 
-      // Main function: load profile by username
       async function loadProfile(username) {
         if (!username) return;
-        
-        // Reset UI
+
         const alertBox = document.getElementById('alert-view');
         alertBox.innerHTML = '<div style="padding: 10px; background: #e3f2fd; margin-bottom: 10px;">Loading profile for <strong>' + username + '</strong>...</div>';
-        
-        try {
-          // Fetch user data via proxy
-          const user = await fetchScratchAPI('/users/' + encodeURIComponent(username));
-          
-          alertBox.innerHTML = ''; // clear loading
 
-          // Update basic fields
+        try {
+          const { data: user } = await fetchScratchAPI('/users/' + encodeURIComponent(username));
+          // Shape check: proxies sometimes mask a 404 as a 200 with junk body
+          if (!user || typeof user !== 'object' || !user.username) {
+            throw new Error(`User “${username}” not found`);
+          }
+
+          alertBox.innerHTML = '';
+
           document.getElementById('profile-username').textContent = user.username;
-          
+
           if (user.profile && user.profile.images && user.profile.images['60x60']) {
               document.getElementById('profile-avatar-img').src = user.profile.images['60x60'];
           }
@@ -227,15 +252,13 @@
 
           document.getElementById('profile-country').textContent = user.profile.country || '';
 
-          // Bio and status (use innerHTML to allow links)
           document.getElementById('profile-bio').innerHTML = user.profile.bio || '<em>No bio provided.</em>';
           document.getElementById('profile-status').innerHTML = user.profile.status || '<em>No status provided.</em>';
 
-          // Fetch projects via proxy
-          const projects = await fetchScratchAPI('/users/' + encodeURIComponent(username) + '/projects?limit=20');
+          const { data: rawProjects } = await fetchScratchAPI('/users/' + encodeURIComponent(username) + '/projects?limit=20');
+          const projects = Array.isArray(rawProjects) ? rawProjects : [];
 
-          // Featured Project
-          if (projects && projects.length > 0) {
+          if (projects.length > 0) {
             const featured = projects[0];
             document.getElementById('featured-project-img').src = featured.image;
             document.getElementById('featured-project-title').textContent = featured.title;
@@ -248,38 +271,28 @@
             document.getElementById('featured-project-link').href = '#';
           }
 
-          // Shared projects carousel
           const sharedList = document.getElementById('shared-projects-list');
           sharedList.innerHTML = '';
-          if (projects) {
-            projects.forEach(p => sharedList.appendChild(createProjectItem(p)));
-            document.getElementById('shared-count').textContent = projects.length;
-          } else {
-            document.getElementById('shared-count').textContent = '0';
-          }
+          projects.forEach(p => sharedList.appendChild(createProjectItem(p)));
+          document.getElementById('shared-count').textContent = projects.length;
 
         } catch (err) {
-          alertBox.innerHTML = `<div class="error-message">Error: ${err.message}</div>`;
+          const msg = err.notFound ? `Error: User “${username}” not found` : `Error: ${err.message}`;
+          alertBox.innerHTML = `<div class="error-message">${msg}</div>`;
           console.error('Profile load error:', err);
         }
       }
 
-      // Hook up the search form
       const searchForm = document.getElementById('profile-search-form');
       searchForm.addEventListener('submit', function(e) {
         e.preventDefault();
         const username = document.getElementById('search-input').value.trim();
-        if (username) {
-          loadProfile(username);
-        }
+        if (username) loadProfile(username);
       });
 
-      // Auto-load the profile typed in the search box when the page loads
       window.addEventListener('load', () => {
         const defaultUser = document.getElementById('search-input').value.trim();
-        if (defaultUser) {
-          loadProfile(defaultUser);
-        }
+        if (defaultUser) loadProfile(defaultUser);
       });
     })();
   </script>
