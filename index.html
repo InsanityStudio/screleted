@@ -153,6 +153,17 @@
         const target = SCRATCH_API_BASE + endpoint;
         const failures = [];
 
+        // api.scratch.mit.edu allows cross-origin requests, so no proxy is needed.
+        try {
+          const res = await fetchWithTimeout(target);
+          if (res.status === 404) { const e = new Error('HTTP 404'); e.notFound = true; throw e; }
+          if (res.ok) return { data: await res.json(), httpCode: res.status };
+          failures.push('direct: ' + res.status);
+        } catch (err) {
+          if (err.notFound) throw err;
+          failures.push('direct: ' + (err.message || 'network error'));
+        }
+
         for (const makeProxy of CORS_PROXIES) {
           const { url, unwrap } = makeProxy(target);
           try {
@@ -244,16 +255,18 @@
           if (user.profile && user.profile.images && user.profile.images['60x60']) {
               document.getElementById('profile-avatar-img').src = user.profile.images['60x60'];
           }
+          // (avatar falls back to the default image in the HTML if missing)
           document.getElementById('profile-avatar-link').href = `https://scratch.mit.edu/users/${user.username}/`;
 
           const joinedIso = user.history && user.history.joined;
           document.getElementById('profile-join-date').textContent = formatJoinDate(joinedIso);
           document.getElementById('profile-join-date').title = joinedIso ? joinedIso.split('T')[0] : '';
 
-          document.getElementById('profile-country').textContent = user.profile.country || '';
+          const prof = user.profile || {};
+          document.getElementById('profile-country').textContent = prof.country || '';
 
-          document.getElementById('profile-bio').innerHTML = user.profile.bio || '<em>No bio provided.</em>';
-          document.getElementById('profile-status').innerHTML = user.profile.status || '<em>No status provided.</em>';
+          document.getElementById('profile-bio').innerHTML = prof.bio || '<em>No bio provided.</em>';
+          document.getElementById('profile-status').innerHTML = prof.status || '<em>No status provided.</em>';
 
           const { data: rawProjects } = await fetchScratchAPI('/users/' + encodeURIComponent(username) + '/projects?limit=20');
           const projects = Array.isArray(rawProjects) ? rawProjects : [];
