@@ -124,6 +124,10 @@
     (function() {
       const SCRATCH_API_BASE = 'https://api.scratch.mit.edu';
 
+      // Paste your Cloudflare Worker URL here (no trailing slash), e.g.
+      // 'https://scratch-proxy.YOURNAME.workers.dev'
+      const WORKER_URL = 'https://scratch-proxy.a225tunc.workers.dev/';
+
       // Fallback chain: if one free proxy is down (e.g. AllOrigins' 522 outage),
       // we automatically try the next one. All are third-party services with
       // rate limits, so this is a demo-grade solution, not production-grade.
@@ -153,15 +157,15 @@
         const target = SCRATCH_API_BASE + endpoint;
         const failures = [];
 
-        // api.scratch.mit.edu allows cross-origin requests, so no proxy is needed.
+        // 1) Your own Worker proxy (reliable), 2) direct, 3) public proxies.
         try {
-          const res = await fetchWithTimeout(target);
+          const res = await fetchWithTimeout(WORKER_URL ? WORKER_URL + endpoint : target);
           if (res.status === 404) { const e = new Error('HTTP 404'); e.notFound = true; throw e; }
           if (res.ok) return { data: await res.json(), httpCode: res.status };
-          failures.push('direct: ' + res.status);
+          failures.push((WORKER_URL ? 'worker: ' : 'direct: ') + res.status);
         } catch (err) {
           if (err.notFound) throw err;
-          failures.push('direct: ' + (err.message || 'network error'));
+          failures.push((WORKER_URL ? 'worker: ' : 'direct: ') + (err.message || 'network error'));
         }
 
         for (const makeProxy of CORS_PROXIES) {
