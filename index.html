@@ -29,6 +29,8 @@
     .card a { color: #855cd6; text-decoration: none; }
     .card .name { display: block; padding: 6px 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
                   font-size: 14px; font-weight: bold; }
+    .card.project .name, .card.project .by { width: 144px; }
+    .card .by a { color: #575e75; font-weight: normal; }
     .card .by { display: block; font-size: 12px; color: #575e75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
     /* projects: 144x108 */
@@ -36,7 +38,10 @@
 
     /* studios: 170x100 thumbnail in a thin frame */
     .card.studio { width: 184px; }
-    .card.studio .thumb { display: block; border: 1px solid #d9d9d9; padding: 6px; background: #fff; }
+    .card.studio .thumb { display: block; position: relative; box-sizing: content-box; width: 170px; border: 1px solid #d9d9d9; padding: 6px; background: #fff; }
+    .card.studio .name { max-width: 188px; }
+    .card.studio .badge { position: absolute; right: 10px; bottom: 10px; width: 26px; height: 19px; border-radius: 4px;
+                          background: rgba(0,0,0,.7); display: flex; align-items: center; justify-content: center; }
     .card.studio img { width: 170px; height: 100px; }
 
     /* users: 60x60 square */
@@ -44,14 +49,28 @@
     .card.user img { width: 60px; height: 60px; }
     .card.user .name { font-size: 13px; }
     .logo-fallback { color: #fff; font-weight: 900; font-size: 22px; letter-spacing: 1px; line-height: 40px; }
-    .pager { display: flex; justify-content: center; align-items: center; gap: 16px; padding: 14px; }
-    .pager button { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center;
-                    height: 38px; padding: 0 20px; border-radius: 19px; background: #4d97ff; color: #fff;
-                    font: bold 14px/1 "Helvetica Neue", Helvetica, Arial, sans-serif; cursor: pointer; user-select: none; }
-    .pager button:hover:not(:disabled) { background: #3d86ee; }
-    .pager button:disabled { background: #dfe6f3; color: #a3b0c9; cursor: default; }
-    .pager #pager-label { font: 14px "Helvetica Neue", Helvetica, Arial, sans-serif; color: #575e75; min-width: 60px; text-align: center; }
-    #full-back { cursor: pointer; }
+    /* ---- Full "View all" pages (modelled on scratch.mit.edu list pages) ---- */
+    #full-head { display: flex; align-items: center; gap: 14px; height: auto; padding: 16px 20px; }
+    #full-avatar { width: 55px; height: 55px; display: block; background: #f2f2f2; }
+    #full-title { margin: 0; font-size: 26px; font-weight: 700; color: #575e75; line-height: 1.2; }
+    #full-title a { color: #855cd6; font-weight: 600; text-decoration: none; }
+    #full-back { margin-left: auto; color: #855cd6; cursor: pointer; font-size: 14px; }
+    .grid.full { gap: 0; padding: 14px 0 6px 20px; }
+    .grid.full .card { margin: 0 0 18px; }
+    .grid.full.k-user    .card { width: 82.4px; margin-bottom: 22px; }
+    .grid.full.k-project .card { width: 182.4px; }
+    .grid.full.k-studio  .card { width: 226.4px; }
+    .grid.full .by a { color: #855cd6; }
+    .paging { padding: 4px 20px 20px; font-size: 15px; color: #575e75; }
+    .paging a { color: #855cd6; text-decoration: none; margin: 0 4px; cursor: pointer; }
+    .paging a:hover { text-decoration: underline; }
+    .paging .cur { color: #222; font-weight: bold; margin: 0 4px; }
+    .paging .dis { color: #aaa; margin: 0 4px; }
+    .acct { font-size: 14px; line-height: 1.8; color: #575e75; padding-top: 4px; }
+    .acct .ok  { color: #3a9d4a; font-weight: bold; }
+    .acct .del { color: #d9534f; font-weight: bold; }
+    .acct .unk { color: #888; font-weight: bold; }
+    .acct small { color: #888; }
   </style>
 </head>
 <body>
@@ -87,17 +106,14 @@
       <!-- Full "View all" page for one section -->
       <div id="full-view" style="display: none;">
         <div class="box">
-          <div class="box-head">
-            <h4 id="full-title"></h4>
+          <div class="box-head" id="full-head">
+            <img id="full-avatar" alt="">
+            <h2 id="full-title"><a href="#" id="full-user" data-user=""></a> &raquo; <span id="full-section"></span></h2>
             <a id="full-back">&larr; Back to profile</a>
           </div>
           <div class="box-content">
-            <ul class="grid" id="full-grid"></ul>
-            <div class="pager">
-              <button id="pager-prev">&larr; Previous</button>
-              <span id="pager-label">Page 1</span>
-              <button id="pager-next">Next &rarr;</button>
-            </div>
+            <ul class="grid full" id="full-grid"></ul>
+            <div class="paging" id="paging"></div>
           </div>
         </div>
       </div>
@@ -154,7 +170,7 @@
               <div class="doing">
                 <h3>What I've been doing</h3>
                 <div id="activity-feed">
-                  <ul class="activity-stream"></ul>
+                  <div class="acct" id="account-info"></div>
                 </div>
               </div>
             </div>
@@ -177,18 +193,21 @@
 
       const PREVIEW_LIMITS = { projects: 5, favorites: 5, studios: 4, following: 9, followers: 9 };
       const previewLimit = key => PREVIEW_LIMITS[key];  // items on the profile page
-      const PAGE_SIZE = 40;       // items per page in "View all" (API max is 40)
+      // "View all" page sizes (same as scratch.mit.edu); the API returns at most 40 per request,
+      // so bigger pages are fetched in several requests.
+      const PAGE_SIZES = { user: 60, project: 24, studio: 24 };
+      const pageSizeFor = key => PAGE_SIZES[SECTIONS[key].kind];
 
       const DEFAULT_AVATAR = 'https://cdn2.scratch.mit.edu/get_image/user/default_60x60.png';
       const DEFAULT_PROJECT = 'https://cdn2.scratch.mit.edu/get_image/project/1147906174_144x108.png';
 
       // Sections shown on the profile, in order.
       const SECTIONS = {
-        projects:  { title: 'Shared Projects',  path: 'projects',       kind: 'project', empty: n => `${n} hasn't shared any projects` },
-        favorites: { title: 'Favorite Projects', path: 'favorites',     kind: 'project', empty: n => `${n} hasn't favorited any projects` },
-        studios:   { title: 'Curated Studios',  path: 'studios/curate', kind: 'studio',  empty: n => `${n} isn't curating any studios yet` },
-        following: { title: 'Following',        path: 'following',      kind: 'user',    empty: n => `${n} isn't following anyone yet` },
-        followers: { title: 'Followers',        path: 'followers',      kind: 'user',    empty: n => `${n} doesn't have any followers yet` },
+        projects:  { fullTitle: 'Shared Projects', title: 'Shared Projects',  path: 'projects',       kind: 'project', empty: n => `${n} hasn't shared any projects` },
+        favorites: { fullTitle: 'Favorites', title: 'Favorite Projects', path: 'favorites',     kind: 'project', empty: n => `${n} hasn't favorited any projects` },
+        studios:   { fullTitle: 'Studios I Curate', title: 'Curated Studios',  path: 'studios/curate', kind: 'studio',  empty: n => `${n} isn't curating any studios yet` },
+        following: { fullTitle: 'Following', title: 'Following',        path: 'following',      kind: 'user',    empty: n => `${n} isn't following anyone yet` },
+        followers: { fullTitle: 'Followers', title: 'Followers',        path: 'followers',      kind: 'user',    empty: n => `${n} doesn't have any followers yet` },
       };
 
       // Fallback chain used only if the Worker/direct request fails.
@@ -308,6 +327,39 @@
         return parts.length ? parts.join(', ') + ' ago' : 'just now';
       }
 
+      // ---------- Account status ("What I've been doing") ----------
+      function formatTimestamp(iso) {
+        const d = new Date(iso);
+        if (isNaN(d)) return 'Unknown';
+        return d.toISOString().replace('T', ' ').replace(/\.\d+Z$/, '') + ' UTC';
+      }
+
+      // Asks the Worker whether the website profile page still exists
+      // (deleted accounts return 404 there even though the API keeps their data).
+      async function checkAccountExists(username) {
+        if (!WORKER_URL) return null;
+        try {
+          const r = await fetchWithTimeout(WORKER_URL + '/__exists/' + encodeURIComponent(username));
+          if (!r.ok) return null;
+          const j = await r.json();
+          return typeof j.exists === 'boolean' ? j.exists : null;
+        } catch (e) { return null; }
+      }
+
+      async function updateAccountInfo(user, token) {
+        const box = $('account-info');
+        const joined = user.history && user.history.joined;
+        const joinedLine = `<div>Joined: <strong>${esc(joined ? formatTimestamp(joined) : 'Unknown')}</strong></div>`;
+        box.innerHTML = `<div>Account: <span class="unk">Checking…</span></div>` + joinedLine;
+        const exists = await checkAccountExists(user.username);
+        if (token !== loadToken) return;
+        let status;
+        if (exists === true)       status = '<span class="ok">Exists</span>';
+        else if (exists === false) status = '<span class="del">Deleted</span> <small>(profile page no longer exists)</small>';
+        else                       status = '<span class="unk">Unknown</span> <small>(status check unavailable)</small>';
+        box.innerHTML = `<div>Account: ${status}</div>` + joinedLine;
+      }
+
       // ---------- Card rendering ----------
       function createCard(kind, item) {
         const li = document.createElement('li');
@@ -324,7 +376,7 @@
           const url = `https://scratch.mit.edu/studios/${item.id}/`;
           li.className = 'card studio';
           li.innerHTML = `
-            <a class="thumb" href="${url}" target="_blank" rel="noopener"><img src="${esc(item.image || DEFAULT_PROJECT)}" alt=""></a>
+            <a class="thumb" href="${url}" target="_blank" rel="noopener"><img src="${esc(item.image || DEFAULT_PROJECT)}" alt=""><span class="badge"><svg width="16" height="12" viewBox="0 0 16 12" fill="#fff"><circle cx="8" cy="3.2" r="2.4"/><path d="M3.5 11c0-2.6 2-4.2 4.5-4.2s4.5 1.6 4.5 4.2z"/><circle cx="3" cy="4.4" r="1.7"/><circle cx="13" cy="4.4" r="1.7"/><path d="M0 10.6c0-1.8 1.2-3 3-3 .4 0 .7 0 1 .2-.8.7-1.3 1.7-1.4 2.8zM16 10.6c0-1.8-1.2-3-3-3-.4 0-.7 0-1 .2.8.7 1.3 1.7 1.4 2.8z"/></svg></span></a>
             <a class="name" href="${url}" target="_blank" rel="noopener" title="${esc(item.title)}">${esc(item.title)}</a>`;
         } else {
           const url = `https://scratch.mit.edu/projects/${item.id}/`;
@@ -333,7 +385,7 @@
           li.innerHTML = `
             <a href="${url}" target="_blank" rel="noopener"><img src="${esc(item.image || DEFAULT_PROJECT)}" alt=""></a>
             <a class="name" href="${url}" target="_blank" rel="noopener" title="${esc(item.title)}">${esc(item.title)}</a>
-            ${author ? `<span class="by">by ${esc(author)}</span>` : ''}`;
+            ${author ? `<span class="by">by <a href="#" data-user="${esc(author)}">${esc(author)}</a></span>` : ''}`;
         }
         return li;
       }
@@ -368,6 +420,7 @@
           box.className = 'box slider-carousel-container prevent-select';
           box.style.marginTop = '20px';
           box.id = 'section-' + key;
+          if (key === 'studios') box.style.display = 'none';   // only shown when the user has studios
           box.innerHTML = `
             <div class="box-head">
               <h4>${esc(SECTIONS[key].title)}</h4>
@@ -390,9 +443,12 @@
           const items = Array.isArray(data) ? data : [];
           fillGrid(ul, SECTIONS[key].kind, items, SECTIONS[key].empty(username));
           box.querySelector('[data-view-all]').style.display = items.length ? '' : 'none';
+          if (key === 'studios' && items.length) box.style.display = '';
           return items;
         } catch (err) {
           if (token !== loadToken) return null;
+          if (key === 'studios' && err.notFound) return null;   // stays hidden
+          box.style.display = '';
           ul.innerHTML = '';
           const li = document.createElement('li');
           li.className = 'msg';
@@ -454,9 +510,10 @@
           $('profile-country').textContent = profile.country || '';
 
           // bio/status are plain text on Scratch: use textContent (no HTML injection)
-          $('profile-bio').textContent = profile.bio || 'No bio provided.';
-          $('profile-status').textContent = profile.status || 'No status provided.';
+          $('profile-bio').textContent = profile.bio || '';
+          $('profile-status').textContent = profile.status || '';
 
+          updateAccountInfo(user, token);   // background: deleted / exists check
           setFeatured(null);
           buildSectionBoxes();
 
@@ -562,44 +619,121 @@
         full = { key: null, page: 1 };
       }
 
+      // Totals: the API has no count endpoint, so they are learned from a short last page
+      // or, failing that, found with a handful of limit=1 probes (exponential + binary search).
+      const countCache = new Map();
+      const countKey = (user, key) => user.toLowerCase() + '|' + key;
+      function getCount(key) {
+        if (key === 'projects' && useFound) return foundProjects.length;
+        const c = countCache.get(countKey(currentUser, key));
+        return c == null ? null : c;
+      }
+
+      async function fetchRange(username, key, start, count) {
+        const reqs = [];
+        for (let off = start; off < start + count; off += 40) {
+          reqs.push(fetchScratchAPI(sectionEndpoint(username, key, Math.min(40, start + count - off), off)));
+        }
+        const res = await Promise.all(reqs);
+        return res.reduce((all, r) => all.concat(Array.isArray(r.data) ? r.data : []), []);
+      }
+
+      async function countItems(username, key) {
+        const has = async off => {
+          const { data } = await fetchScratchAPI(sectionEndpoint(username, key, 1, off));
+          return Array.isArray(data) && data.length > 0;
+        };
+        if (!(await has(0))) return 0;
+        let lo = 0, hi = 1;
+        while (hi < 1000000 && await has(hi)) { lo = hi; hi *= 2; }
+        while (hi - lo > 1) {
+          const mid = (lo + hi) >> 1;
+          if (await has(mid)) lo = mid; else hi = mid;
+        }
+        return lo + 1;
+      }
+
+      // "« previous 1 2 3 4 5 next »"
+      function renderPaging(page, total, hasNext) {
+        const box = $('paging');
+        const out = [];
+        out.push(page > 1 ? `<a data-page="${page - 1}">&laquo; previous</a>` : '<span class="dis">&laquo; previous</span>');
+        if (total) {
+          const set = new Set([1, total]);
+          for (let i = page - 2; i <= page + 2; i++) if (i >= 1 && i <= total) set.add(i);
+          let prev = 0;
+          [...set].sort((x, y) => x - y).forEach(n => {
+            if (n - prev > 1) out.push('<span class="dis">…</span>');
+            out.push(n === page ? `<span class="cur">${n}</span>` : `<a data-page="${n}">${n}</a>`);
+            prev = n;
+          });
+        } else {
+          out.push(`<span class="cur">${page}</span>`);
+        }
+        out.push(hasNext ? `<a data-page="${page + 1}">next &raquo;</a>` : '<span class="dis">next &raquo;</span>');
+        box.innerHTML = out.join(' ');
+      }
+
       async function showFull(key, page) {
         if (!currentUser) return;
         full = { key, page };
         const sec = SECTIONS[key];
+        const size = pageSizeFor(key);
+        const myKey = key, myPage = page, myUser = currentUser;
+        const stale = () => full.key !== myKey || full.page !== myPage || currentUser !== myUser;
+
         $('profile-view').style.display = 'none';
         $('full-view').style.display = '';
-        $('full-title').textContent = `${currentUser} — ${sec.title}`;
-        $('pager-label').textContent = 'Page ' + page;
-        $('pager-prev').disabled = true;
-        $('pager-next').disabled = true;
+        $('full-avatar').src = $('profile-avatar-img').src;
+        const userLink = $('full-user');
+        userLink.textContent = myUser;
+        userLink.dataset.user = myUser;
+
+        const refreshHead = hasNext => {
+          const c = getCount(key);
+          $('full-section').textContent = sec.fullTitle + (c != null ? ` (${c})` : '');
+          renderPaging(page, c != null ? Math.max(1, Math.ceil(c / size)) : null, hasNext);
+        };
+
         const ul = $('full-grid');
+        ul.className = 'grid full k-' + sec.kind;
         ul.innerHTML = '<li class="msg">Loading…</li>';
+        refreshHead(false);
         window.scrollTo(0, 0);
 
-        if (key === 'projects' && useFound) {
-          const items = foundProjects.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-          fillGrid(ul, sec.kind, items, 'No more results.');
-          $('pager-prev').disabled = page <= 1;
-          $('pager-next').disabled = foundProjects.length <= page * PAGE_SIZE;
-          return;
-        }
-
-        const myKey = key, myPage = page, myUser = currentUser;
+        let items;
         try {
-          const { data } = await fetchScratchAPI(sectionEndpoint(myUser, key, PAGE_SIZE, (page - 1) * PAGE_SIZE));
-          if (full.key !== myKey || full.page !== myPage || currentUser !== myUser) return;
-          const items = Array.isArray(data) ? data : [];
-          fillGrid(ul, sec.kind, items, page > 1 ? 'No more results.' : 'Nothing here.');
-          $('pager-prev').disabled = page <= 1;
-          $('pager-next').disabled = items.length < PAGE_SIZE;
+          items = (key === 'projects' && useFound)
+            ? foundProjects.slice((page - 1) * size, page * size)
+            : await fetchRange(myUser, key, (page - 1) * size, size);
         } catch (err) {
-          if (full.key !== myKey || full.page !== myPage) return;
+          if (stale()) return;
           ul.innerHTML = '';
           const li = document.createElement('li');
           li.className = 'msg';
           li.textContent = errorText(err);
           ul.appendChild(li);
-          $('pager-prev').disabled = page <= 1;
+          return;
+        }
+        if (stale()) return;
+
+        fillGrid(ul, sec.kind, items, page > 1 ? 'No more results.' : sec.empty(myUser));
+
+        // A short page reveals the exact total for free
+        if (!(key === 'projects' && useFound) && items.length < size && items.length > 0) {
+          countCache.set(countKey(myUser, key), (page - 1) * size + items.length);
+        } else if (!(key === 'projects' && useFound) && page === 1 && items.length === 0) {
+          countCache.set(countKey(myUser, key), 0);
+        }
+        refreshHead(items.length >= size);
+
+        // Otherwise find the total in the background and update the title / page numbers
+        if (getCount(key) == null) {
+          try {
+            const total = await countItems(myUser, key);
+            countCache.set(countKey(myUser, key), total);
+            if (!stale()) refreshHead(page * size < total);
+          } catch (e) { /* leave the count out */ }
         }
       }
 
@@ -642,12 +776,13 @@
         const viewAll = e.target.closest('[data-view-all]');
         if (viewAll) { e.preventDefault(); showFull(viewAll.dataset.viewAll, 1); return; }
 
+        const pg = e.target.closest('[data-page]');
+        if (pg) { e.preventDefault(); showFull(full.key, parseInt(pg.dataset.page, 10)); return; }
+
         const userLink = e.target.closest('[data-user]');
-        if (userLink) { e.preventDefault(); loadProfile(userLink.dataset.user); window.scrollTo(0, 0); }
+        if (userLink && userLink.dataset.user) { e.preventDefault(); loadProfile(userLink.dataset.user); window.scrollTo(0, 0); }
       });
       $('full-back').addEventListener('click', hideFull);
-      $('pager-prev').addEventListener('click', () => showFull(full.key, full.page - 1));
-      $('pager-next').addEventListener('click', () => showFull(full.key, full.page + 1));
 
       $('search-input').addEventListener('keydown', function(e) {
         if (e.key === 'Enter') {
