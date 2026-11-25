@@ -207,6 +207,34 @@
 
       const $ = id => document.getElementById(id);
 
+      // ---------- Username in the URL ----------
+      // Pretty URLs like /screleted/kaj work through 404.html, which redirects to
+      // /screleted/?user=kaj; we then rewrite the address bar back to /screleted/kaj.
+      const BASE = location.pathname.replace(/index\.html$/, '').replace(/[^/]*$/, '');
+      const DEFAULT_USER = $('search-input').value.trim();
+
+      function userFromUrl() {
+        const q = new URLSearchParams(location.search).get('user');
+        if (q && q.trim()) return q.trim();
+        if (location.pathname.startsWith(BASE)) {
+          const rest = location.pathname.slice(BASE.length).split('/')[0];
+          if (rest && rest !== 'index.html') {
+            try { return decodeURIComponent(rest).trim(); } catch (e) { return rest.trim(); }
+          }
+        }
+        return '';
+      }
+
+      function setUrl(username, mode) {
+        if (mode === 'none') return;
+        try {
+          const target = BASE + encodeURIComponent(username);
+          if (mode === 'replace') history.replaceState({}, '', target);
+          else if (location.pathname !== target || location.search) history.pushState({}, '', target);
+          document.title = username + ' – Scratch Profile Viewer';
+        } catch (e) { /* e.g. opened from file:// */ }
+      }
+
       function esc(s) {
         return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
           ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -391,8 +419,9 @@
         }
       }
 
-      async function loadProfile(username) {
+      async function loadProfile(username, urlMode = 'push') {
         if (!username) return;
+        setUrl(username, urlMode);
         const token = ++loadToken;
         foundProjects = [];
         useFound = false;
@@ -635,8 +664,14 @@
       });
 
       window.addEventListener('load', () => {
-        const defaultUser = $('search-input').value.trim();
-        if (defaultUser) loadProfile(defaultUser);
+        const fromUrl = userFromUrl();
+        const initial = fromUrl || DEFAULT_USER;
+        if (initial) { $('search-input').value = initial; loadProfile(initial, fromUrl ? 'replace' : 'none'); }
+      });
+
+      window.addEventListener('popstate', () => {
+        const u = userFromUrl() || DEFAULT_USER;
+        if (u) { $('search-input').value = u; loadProfile(u, 'none'); }
       });
     })();
   </script>
