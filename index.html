@@ -358,10 +358,11 @@
 
       const $ = id => document.getElementById(id);
 
-      // ---------- Username / section in the URL ----------
-      // Pretty URLs like /screleted/kaj/favorites work through 404.html, which redirects to
-      // /screleted/?user=kaj&section=favorites; we then rewrite the address bar back to the
-      // pretty URL. URLs used for each section are listed in URL_SECTIONS.
+      // ---------- Explicit profile / studio routes ----------
+      // Profiles always use /users/USERNAME and studios always use /studios/STUDIOID.
+      // This means numeric Scratch usernames can never be confused with studio IDs.
+      // On insanitystudio.github.io the project is hosted below /screleted/; the other
+      // two domains are root-hosted.
       const BASE = location.hostname === 'insanitystudio.github.io' ? '/screleted/' : '/';
       const DEFAULT_USER = $('search-input').value.trim();
 
@@ -370,13 +371,15 @@
         return location.pathname.slice(BASE.length).split('/').filter(Boolean);
       }
 
+      function safeDecodePathPart(value) {
+        try { return decodeURIComponent(value || ''); } catch (e) { return value || ''; }
+      }
+
       function userFromUrl() {
         const q = new URLSearchParams(location.search).get('user');
         if (q && q.trim()) return q.trim();
         const parts = pathAfterBase();
-        if (parts[0] && parts[0] !== 'index.html') {
-          try { return decodeURIComponent(parts[0]).trim(); } catch (e) { return parts[0].trim(); }
-        }
+        if (parts[0] === 'users' && parts[1]) return safeDecodePathPart(parts[1]).trim();
         return '';
       }
 
@@ -384,21 +387,23 @@
         const q = new URLSearchParams(location.search).get('studio');
         if (q && /^\d+$/.test(q.trim())) return q.trim();
         const parts = pathAfterBase();
-        return parts[0] && /^\d+$/.test(parts[0]) ? parts[0] : '';
+        if (parts[0] === 'studios' && parts[1] && /^\d+$/.test(parts[1])) return parts[1];
+        return '';
       }
 
       function sectionFromUrl() {
         const q = new URLSearchParams(location.search).get('section');
         if (q && SECTIONS[q]) return q;
         const parts = pathAfterBase();
-        if (parts.length >= 2 && SECTIONS[parts[1]]) return parts[1];
+        const sectionIndex = parts[0] === 'users' ? 2 : 1;
+        if (parts.length > sectionIndex && SECTIONS[parts[sectionIndex]]) return parts[sectionIndex];
         return null;
       }
 
       function setUrl(username, sectionKey, mode) {
         if (mode === 'none') return;
         try {
-          let target = BASE + encodeURIComponent(username);
+          let target = BASE + 'users/' + encodeURIComponent(username);
           const sec = sectionKey && SECTIONS[sectionKey] ? sectionKey : null;
           if (sec) target += '/' + sec;
           if (mode === 'replace') history.replaceState({}, '', target);
@@ -410,7 +415,7 @@
       function setStudioUrl(studioId, mode) {
         if (mode === 'none') return;
         try {
-          const target = BASE + encodeURIComponent(String(studioId));
+          const target = BASE + 'studios/' + encodeURIComponent(String(studioId));
           if (mode === 'replace') history.replaceState({}, '', target);
           else if (location.pathname !== target || location.search) history.pushState({}, '', target);
           document.title = 'Studio ' + studioId + ' on screleted';
@@ -1099,17 +1104,103 @@
         return `https://cdn2.scratch.mit.edu/get_image/gallery/${encodeURIComponent(studioId)}_170x100.png`;
       }
 
+      function studioProjectAuthor(project) {
+        const raw = project.author || project.creator || project.user || project.owner || {};
+        const author = raw && typeof raw === 'object' ? raw : {};
+        const username = author.username || project.username || project.creator_username ||
+          project.author_username || project.owner_username || (typeof raw === 'string' ? raw : '') ||
+          (typeof project.creator === 'string' ? project.creator : '');
+        const id = author.id || author.pk || project.creator_id || project.author_id ||
+          project.owner_id || project.user_id || null;
+        return {
+          username: String(username || '').trim(),
+          id: id == null ? null : String(id),
+          profile: author.profile || project.profile || {},
+          raw: author,
+        };
+      }
+
+      const studioProjectDetailsCache = new Map();
+      const studioCreatorProfileCache = new Map();
+
+      async function fetchStudioProjectDetails(projectId) {
+        const key = String(projectId);
+        if (!studioProjectDetailsCache.has(key)) {
+          studioProjectDetailsCache.set(key, fetchScratchAPI('/projects/' + encodeURIComponent(key))
+            .then(result => result.data || null).catch(() => null));
+        }
+        return studioProjectDetailsCache.get(key);
+      }
+
+      async function fetchStudioCreatorProfile(username) {
+        const key = String(username || '').toLowerCase();
+        if (!key) return null;
+        if (!studioCreatorProfileCache.has(key)) {
+          studioCreatorProfileCache.set(key, fetchScratchAPI('/users/' + encodeURIComponent(username))
+            .then(result => result.data || null).catch(() => null));
+        }
+        return studioCreatorProfileCache.get(key);
+      }
+
+      async function prepareStudioProject(project) {
+        let prepared = Object.assign({}, project);
+        let creator = studioProjectAuthor(prepared);
+
+        // Some studio project-list responses omit the author object entirely.
+        // The canonical /projects/:id response includes the project's author.
+        if (!creator.username && prepared.id != null) {
+          const details = await fetchStudioProjectDetails(prepared.id);
+          if (details) {
+            prepared = Object.assign({}, details, prepared, {
+              author: prepared.author || details.author || details.creator || null,
+            });
+            creator = studioProjectAuthor(prepared);
+          }
+        }
+
+        let profile = creator.profile || {};
+        let images = profile.images || {};
+        let avatar = images['60x60'] || images['90x90'] ||
+          creator.raw.avatar || creator.raw.image || prepared.creator_avatar || prepared.author_avatar || '';
+
+        // The studio list often has the creator's username but not their profile
+        // images. Resolve the user once per username and reuse the cached result.
+        let creatorId = creator.id;
+        if ((!avatar || !creatorId) && creator.username) {
+          const user = await fetchStudioCreatorProfile(creator.username);
+          if (user) {
+            profile = user.profile || profile;
+            images = profile.images || images;
+            avatar = avatar || images['60x60'] || images['90x90'] || '';
+            creatorId = creatorId || (user.id == null ? null : String(user.id));
+          }
+        }
+
+        // Last-resort avatar URL when the API supplies an ID but not image URLs.
+        if (!avatar && creatorId) {
+          avatar = `https://cdn2.scratch.mit.edu/get_image/user/${encodeURIComponent(creatorId)}_60x60.png`;
+        }
+
+        prepared.author = Object.assign({}, creator.raw, {
+          id: creatorId || creator.raw.id,
+          username: creator.username,
+          profile: profile,
+        });
+        prepared._studioCreatorUsername = creator.username;
+        prepared._studioCreatorAvatar = avatar || DEFAULT_AVATAR;
+        prepared._studioCreatorId = creatorId;
+        return prepared;
+      }
+
       function renderStudioProject(project) {
         const id = project && project.id;
         if (id == null) return null;
         const title = project.title || 'Untitled';
-        const author = project.author || {};
-        const username = author.username || '';
-        const profile = author.profile || {};
-        const images = profile.images || {};
-        const avatar = images['60x60'] || images['90x90'] || DEFAULT_AVATAR;
+        const creator = studioProjectAuthor(project);
+        const username = project._studioCreatorUsername || creator.username;
+        const avatar = project._studioCreatorAvatar || DEFAULT_AVATAR;
         const projectImages = project.images || {};
-        const thumbnail = projectImages['480x360'] || projectImages['282x210'] ||
+        const thumbnail = projectImages['480x360'] || projectImages['282x210'] || project.image ||
           `https://cdn2.scratch.mit.edu/get_image/project/${id}_480x360.png`;
         const li = document.createElement('div');
         li.className = 'studio-project-tile';
@@ -1118,14 +1209,18 @@
             <img class="studio-project-image" src="${esc(thumbnail)}" alt="${esc(title)}" loading="lazy">
           </a>
           <div class="studio-project-bottom">
-            <a href="#" ${username ? `data-user="${esc(username)}"` : ''} title="${esc(username)}">
-              <img class="studio-project-avatar" src="${esc(avatar)}" alt="">
-            </a>
+            ${username ? `<a href="#" data-user="${esc(username)}" title="${esc(username)}">` : '<span title="Creator unavailable">'}
+              <img class="studio-project-avatar" src="${esc(avatar)}" alt="${username ? esc(username) + ' profile picture' : 'Creator profile picture'}">
+            ${username ? '</a>' : '</span>'}
             <div class="studio-project-info">
               <a class="studio-project-title" href="https://scratch.mit.edu/projects/${encodeURIComponent(id)}/" target="_blank" rel="noopener" title="${esc(title)}">${esc(title)}</a>
-              ${username ? `<a class="studio-project-username" href="#" data-user="${esc(username)}">${esc(username)}</a>` : '<span class="studio-project-username">Unknown creator</span>'}
+              ${username ? `<a class="studio-project-username" href="#" data-user="${esc(username)}">${esc(username)}</a>` : '<span class="studio-project-username">Creator unavailable</span>'}
             </div>
           </div>`;
+        const avatarImage = li.querySelector('.studio-project-avatar');
+        avatarImage.addEventListener('error', function() {
+          if (this.src !== DEFAULT_AVATAR) this.src = DEFAULT_AVATAR;
+        }, { once: true });
         return li;
       }
 
@@ -1157,7 +1252,20 @@
           const { data } = await fetchScratchAPI(`/studios/${encodeURIComponent(currentStudioId)}/projects?limit=${STUDIO_PAGE_SIZE}&offset=${studioNextOffset}`);
           if (token !== loadToken || token !== studioLoadToken) return;
           const items = Array.isArray(data) ? data : [];
-          appendStudioProjects(items);
+          // Resolve missing creator details before drawing the tiles. Run a small
+          // number of lookups concurrently to avoid flooding the Scratch API.
+          const prepared = new Array(items.length);
+          let nextProject = 0;
+          const workerCount = Math.min(6, items.length);
+          await Promise.all(Array.from({ length: workerCount }, async () => {
+            while (nextProject < items.length) {
+              const index = nextProject++;
+              prepared[index] = await prepareStudioProject(items[index]);
+              if (token !== loadToken || token !== studioLoadToken) return;
+            }
+          }));
+          if (token !== loadToken || token !== studioLoadToken) return;
+          appendStudioProjects(prepared);
           studioNextOffset += items.length;
           studioHasMore = items.length === STUDIO_PAGE_SIZE;
           if (studioHasMore) {
