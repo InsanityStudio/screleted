@@ -9,25 +9,39 @@
   <style>
     #profile-data .loading-img { display: none; }
     .error-message { color: #d9534f; padding: 10px; font-weight: bold; }
-    #topnav .logo { background: none; float: left; width: auto; height: 50px; margin: 0 20px 0 0; padding: 0; display: flex; align-items: center; }
-    #topnav .logo img { height: 32px; width: auto; margin: 0 !important; display: block; }
+    #topnav .logo { background: none; float: left; width: auto; height: 35px; margin: 0 20px 0 0 !important; padding: 0; display: flex; align-items: center; overflow: hidden; }
+    #topnav .logo img { height: 24px; width: auto; margin: 0 !important; display: block; }
     #profile-bio, #profile-status { white-space: pre-wrap; word-wrap: break-word; }
 
     .grid { display: flex; flex-wrap: wrap; gap: 14px 30px; padding: 12px 26px; margin: 0; list-style: none; }
     .grid .msg { color: #888; font-style: italic; padding: 10px 0; }
     .grid .empty { width: 100%; box-sizing: border-box; background: #d9ecf7; border: 1px solid #c5e0f0; border-radius: 6px;
                    text-align: center; font-weight: bold; font-size: 18px; color: #575e75; padding: 32px 20px; }
-    .card { width: 144px; }
-    .card.user { width: 62px; }
+    /* Profile-page previews: always exactly one row (never wraps) */
+    .grid.preview { flex-wrap: nowrap; overflow: hidden; }
+    .grid.preview.k-project { gap: 32px; }
+    .grid.preview.k-studio  { gap: 40px; }
+    .grid.preview.k-user    { gap: 37px; }
+
+    .card { width: 144px; flex: 0 0 auto; }
     .card img { display: block; background: #f2f2f2; object-fit: cover; }
-    .card.user img { width: 62px; height: 62px; }
-    .card:not(.user) img { width: 144px; height: 108px; }
     .card a { color: #855cd6; text-decoration: none; }
-    .card.studio { width: 200px; }
-    .card.studio img { width: 200px; height: 124px; }
-    .card.user .name { font-size: 12px; }
-    .card .name { display: block; padding: 6px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    .card .name { display: block; padding: 6px 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
                   font-size: 14px; font-weight: bold; }
+    .card .by { display: block; font-size: 12px; color: #575e75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* projects: 144x108 */
+    .card.project img { width: 144px; height: 108px; }
+
+    /* studios: 170x100 thumbnail in a thin frame */
+    .card.studio { width: 184px; }
+    .card.studio .thumb { display: block; border: 1px solid #d9d9d9; padding: 6px; background: #fff; }
+    .card.studio img { width: 170px; height: 100px; }
+
+    /* users: 60x60 square */
+    .card.user { width: 60px; }
+    .card.user img { width: 60px; height: 60px; }
+    .card.user .name { font-size: 13px; }
     .logo-fallback { color: #fff; font-weight: 900; font-size: 22px; letter-spacing: 1px; line-height: 40px; }
     .pager { display: flex; justify-content: center; align-items: center; gap: 16px; padding: 14px; }
     .pager button { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center;
@@ -279,14 +293,16 @@
           const url = `https://scratch.mit.edu/studios/${item.id}/`;
           li.className = 'card studio';
           li.innerHTML = `
-            <a href="${url}" target="_blank" rel="noopener"><img src="${esc(item.image || DEFAULT_PROJECT)}" alt=""></a>
-            <a class="name" href="${url}" target="_blank" rel="noopener">${esc(item.title)}</a>`;
+            <a class="thumb" href="${url}" target="_blank" rel="noopener"><img src="${esc(item.image || DEFAULT_PROJECT)}" alt=""></a>
+            <a class="name" href="${url}" target="_blank" rel="noopener" title="${esc(item.title)}">${esc(item.title)}</a>`;
         } else {
           const url = `https://scratch.mit.edu/projects/${item.id}/`;
-          li.className = 'card';
+          const author = item.author && item.author.username;
+          li.className = 'card project';
           li.innerHTML = `
             <a href="${url}" target="_blank" rel="noopener"><img src="${esc(item.image || DEFAULT_PROJECT)}" alt=""></a>
-            <a class="name" href="${url}" target="_blank" rel="noopener">${esc(item.title)}</a>`;
+            <a class="name" href="${url}" target="_blank" rel="noopener" title="${esc(item.title)}">${esc(item.title)}</a>
+            ${author ? `<span class="by">by ${esc(author)}</span>` : ''}`;
         }
         return li;
       }
@@ -327,7 +343,7 @@
               <a href="#" data-view-all="${key}" style="display: none;">View all</a>
             </div>
             <div class="box-content" style="min-height: 60px;">
-              <ul class="grid"><li class="msg">Loading…</li></ul>
+              <ul class="grid preview k-${SECTIONS[key].kind}"><li class="msg">Loading…</li></ul>
             </div>`;
           wrap.appendChild(box);
         });
@@ -482,6 +498,20 @@
         img.onerror = next;
         next();
       })();
+
+      // Size the logo to the actual header bar so it always sits fully inside it
+      function fitLogo() {
+        const bar = $('topnav');
+        const logo = bar.querySelector('.logo');
+        const img = $('site-logo');
+        const h = bar.offsetHeight > 20 ? bar.offsetHeight : 35;
+        logo.style.height = h + 'px';
+        if (img) img.style.height = Math.round(h * 0.68) + 'px';
+      }
+      fitLogo();
+      window.addEventListener('load', fitLogo);
+      window.addEventListener('resize', fitLogo);
+      $('site-logo') && $('site-logo').addEventListener('load', fitLogo);
 
       // ---------- Events ----------
       document.addEventListener('click', function(e) {
