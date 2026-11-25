@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Scratch Profile Viewer</title>
-  <link rel="stylesheet" href="https://cdn.scratch.mit.edu/scratchr2/static/__0b77027edd8c5758537a8bc19a9ae817__/css/main.css">
-  <link rel="stylesheet" href="https://cdn.scratch.mit.edu/scratchr2/static/__0b77027edd8c5758537a8bc19a9ae817__/css/pages/profile.css">
+  <link rel="stylesheet" href="https://cdn.scratch.mit.edu/scratchr2/static/__9df8705ead146d0ff4b9ef4e86644347__/css/main.css">
+  <link rel="stylesheet" href="https://cdn.scratch.mit.edu/scratchr2/static/__9df8705ead146d0ff4b9ef4e86644347__/css/pages/profile.css">
   <style>
     #profile-data .loading-img { display: none; }
     .error-message { color: #d9534f; padding: 10px; font-weight: bold; }
@@ -55,19 +55,10 @@
     #full-title { margin: 0; font-size: 26px; font-weight: 700; color: #575e75; line-height: 1.2; }
     #full-title a { color: #855cd6; font-weight: 600; text-decoration: none; }
     #full-back { margin-left: auto; color: #855cd6; cursor: pointer; font-size: 14px; }
-    .grid.full { gap: 0; padding: 14px 0 6px 20px; }
-    .grid.full .card { margin: 0 0 18px; }
-    .grid.full.k-user    .card { width: 82.4px; margin-bottom: 22px; }
-    .grid.full.k-project .card { width: 182.4px; }
-    .grid.full.k-studio  .card { width: 226.4px; }
-    .grid.full .by a { color: #855cd6; }
-    .paging { padding: 4px 20px 20px; font-size: 15px; color: #575e75; }
-    .paging a { color: #855cd6; text-decoration: none; margin: 0 4px; cursor: pointer; }
-    .paging a:hover { text-decoration: underline; }
-    .paging .cur { color: #222; font-weight: bold; margin: 0 4px; }
-    .paging .dis { color: #aaa; margin: 0 4px; }
+    #full-view .media-grid .msg { list-style: none; padding: 12px 0; color: #575e75; font-style: italic; }
     .acct { font-size: 14px; line-height: 1.8; color: #575e75; padding-top: 4px; }
-    .acct .ok  { color: #3a9d4a; font-weight: bold; }
+    .acct .ok  { color: #3a9d4a; font-weight: bold; text-decoration: none; }
+    .acct a.ok:hover { text-decoration: underline; }
     .acct .del { color: #d9534f; font-weight: bold; }
     .acct .unk { color: #888; font-weight: bold; }
     .acct small { color: #888; }
@@ -112,8 +103,8 @@
             <a id="full-back">&larr; Back to profile</a>
           </div>
           <div class="box-content">
-            <ul class="grid full" id="full-grid"></ul>
-            <div class="paging" id="paging"></div>
+            <div class="media-grid"><ul id="full-grid"></ul></div>
+            <div class="pagination" id="paging"></div>
           </div>
         </div>
       </div>
@@ -124,7 +115,7 @@
             <form id="profile-avatar" class="portrait">
               <div class="avatar-wrapper">
                 <a href="#" id="profile-avatar-link">
-                  <img id="profile-avatar-img" src="https://cdn2.scratch.mit.edu/get_image/user/143585_60x60.png" width="55" height="55">
+                  <img id="profile-avatar-img" src="https://cdn2.scratch.mit.edu/get_image/user/default_60x60.png" width="55" height="55">
                 </a>
               </div>
             </form>
@@ -155,7 +146,7 @@
                     </div>
                   </div>
                 </div>
-                <div class="player">
+                <div class="player" style="display: none;">
                   <h3 class="featured-project-heading">Featured Project</h3>
                   <div class="stage" style="width: 282px;">
                     <a href="#" id="featured-project-link">
@@ -193,10 +184,10 @@
 
       const PREVIEW_LIMITS = { projects: 5, favorites: 5, studios: 4, following: 9, followers: 9 };
       const previewLimit = key => PREVIEW_LIMITS[key];  // items on the profile page
-      // "View all" page sizes (same as scratch.mit.edu); the API returns at most 40 per request,
-      // so bigger pages are fetched in several requests.
-      const PAGE_SIZES = { user: 60, project: 24, studio: 24 };
-      const pageSizeFor = key => PAGE_SIZES[SECTIONS[key].kind];
+      // "View all" pages show 60 items, like scratch.mit.edu. The API returns at most 40 per
+      // request, so each page is fetched in two requests.
+      const PAGE_SIZE = 60;
+      const pageSizeFor = () => PAGE_SIZE;
 
       const DEFAULT_AVATAR = 'https://cdn2.scratch.mit.edu/get_image/user/default_60x60.png';
       const DEFAULT_PROJECT = 'https://cdn2.scratch.mit.edu/get_image/project/1147906174_144x108.png';
@@ -354,7 +345,7 @@
         const exists = await checkAccountExists(user.username);
         if (token !== loadToken) return;
         let status;
-        if (exists === true)       status = '<span class="ok">Exists</span>';
+        if (exists === true)       status = `<a class="ok" href="https://scratch.mit.edu/users/${encodeURIComponent(user.username)}/" target="_blank" rel="noopener">Exists</a>`;
         else if (exists === false) status = '<span class="del">Deleted</span>';
         else                       status = '<span class="unk">Unknown</span>';
         box.innerHTML = `<div>Account: ${status}</div>` + joinedLine;
@@ -390,6 +381,60 @@
         return li;
       }
 
+      // Same markup as scratch.mit.edu's list pages (templates/carousel/*-thumb.html),
+      // so Scratch's own stylesheet draws them.
+      const profileUrl = name => 'https://scratch.mit.edu/users/' + encodeURIComponent(name) + '/';
+
+      function createFullItem(kind, item) {
+        const li = document.createElement('li');
+        if (kind === 'user') {
+          const prof = item.profile || {};
+          const imgs = prof.images || {};
+          const src = imgs['60x60'] || imgs['90x90'] || DEFAULT_AVATAR;
+          const badge = prof.membership_avatar_badge || item.membership_avatar_badge;
+          li.className = 'user thumb item';
+          li.innerHTML = `
+            <a href="${profileUrl(item.username)}" data-user="${esc(item.username)}" class="avatar-wrapper ${badge ? 'avatar-badge-wrapper' : ''}">
+              <img class="lazy ${badge ? 'avatar-badge' : ''}" width="60" height="60" src="${esc(src)}" style="display: block;">
+            </a>
+            <span class="title"><a href="${profileUrl(item.username)}" data-user="${esc(item.username)}">${esc(item.username)}</a></span>`;
+        } else if (kind === 'studio') {
+          const url = `https://scratch.mit.edu/studios/${item.id}/`;
+          const src = `https://cdn2.scratch.mit.edu/get_image/gallery/${item.id}_170x100.png`;
+          li.className = 'gallery thumb item';
+          li.innerHTML = `
+            <a href="${url}" class="image" target="_blank" rel="noopener">
+              <span class="image"><img class="lazy" width="170" height="100" src="${src}" style="display: block;" onerror="this.onerror=null;this.src='${esc(item.image || DEFAULT_PROJECT)}'"></span>
+              <span class="stats"><span class="icon-sm studio white"></span></span>
+            </a>
+            <span class="title"><a href="${url}" target="_blank" rel="noopener">${esc(item.title)}</a></span>`;
+        } else {
+          const url = `https://scratch.mit.edu/projects/${item.id}/`;
+          const src = `https://cdn2.scratch.mit.edu/get_image/project/${item.id}_144x108.png`;
+          const author = item.author && item.author.username;
+          li.className = 'project thumb item';
+          li.innerHTML = `
+            <a href="${url}" target="_blank" rel="noopener">
+              <img class="lazy image" width="144" height="108" src="${src}" style="display: block;" onerror="this.onerror=null;this.src='${esc(item.image || DEFAULT_PROJECT)}'">
+            </a>
+            <span class="title"><a href="${url}" target="_blank" rel="noopener">${esc(item.title)}</a></span>
+            <span class="owner">${author ? `by <a href="${profileUrl(author)}" data-user="${esc(author)}">${esc(author)}</a>` : ''}</span>`;
+        }
+        return li;
+      }
+
+      function fillFull(ul, kind, items, emptyMsg) {
+        ul.innerHTML = '';
+        if (!items.length) {
+          const li = document.createElement('li');
+          li.className = 'msg';
+          li.textContent = emptyMsg || 'Nothing here.';
+          ul.appendChild(li);
+          return;
+        }
+        items.forEach(it => ul.appendChild(createFullItem(kind, it)));
+      }
+
       function fillGrid(ul, kind, items, emptyMsg) {
         ul.innerHTML = '';
         if (!items.length) {
@@ -411,6 +456,36 @@
                '?limit=' + limit + '&offset=' + offset;
       }
 
+      // ---------- Counts in the section headers: "Followers (205)" ----------
+      // The API has no count endpoint: a short preview already tells the exact total,
+      // otherwise it is found with a few limit=1 probes (see countItems), one section at a time.
+      const COUNTED = ['projects', 'favorites', 'following', 'followers'];
+      let countChain = Promise.resolve();
+
+      function setSectionCount(key, n) {
+        const el = document.querySelector('#section-' + key + ' .count');
+        if (el) el.textContent = ' (' + n + ')';
+      }
+
+      function scheduleCount(username, key, items, token) {
+        if (!COUNTED.includes(key)) return;
+        const ck = countKey(username, key);
+        if (items.length < previewLimit(key)) {
+          countCache.set(ck, items.length);
+          setSectionCount(key, items.length);
+          return;
+        }
+        if (countCache.has(ck)) { setSectionCount(key, countCache.get(ck)); return; }
+        countChain = countChain.then(async () => {
+          if (token !== loadToken) return;
+          try {
+            const n = await countItems(username, key);
+            countCache.set(ck, n);
+            if (token === loadToken) setSectionCount(key, n);
+          } catch (e) { /* leave the count out */ }
+        });
+      }
+
       // ---------- Profile page sections ----------
       function buildSectionBoxes() {
         const wrap = $('sections');
@@ -423,7 +498,7 @@
           if (key === 'studios') box.style.display = 'none';   // only shown when the user has studios
           box.innerHTML = `
             <div class="box-head">
-              <h4>${esc(SECTIONS[key].title)}</h4>
+              <h4>${esc(SECTIONS[key].title)}<span class="count"></span></h4>
               <a href="#" data-view-all="${key}" style="display: none;">View all</a>
             </div>
             <div class="box-content" style="min-height: 60px;">
@@ -444,6 +519,7 @@
           fillGrid(ul, SECTIONS[key].kind, items, SECTIONS[key].empty(username));
           box.querySelector('[data-view-all]').style.display = items.length ? '' : 'none';
           if (key === 'studios' && items.length) box.style.display = '';
+          scheduleCount(username, key, items, token);
           return items;
         } catch (err) {
           if (token !== loadToken) return null;
@@ -576,6 +652,7 @@
           if (!useFound) return;
           fillGrid(ul, 'project', foundProjects.slice(0, previewLimit('projects')));
           viewAll.style.display = '';
+          setSectionCount('projects', foundProjects.length);
         };
 
         await runPool(studios, STUDIO_SCAN_CONCURRENCY, async st => {
@@ -653,25 +730,36 @@
         return lo + 1;
       }
 
-      // "« previous 1 2 3 4 5 next »"
+      // Same markup as scratch.mit.edu: « previous 1 2 3 4 5 next »
       function renderPaging(page, total, hasNext) {
         const box = $('paging');
+        // one page only -> nothing to paginate (Scratch shows no pagination then)
+        if (page === 1 && !hasNext && (!total || total <= 1)) { box.innerHTML = ''; return; }
+
+        const link = (n, label) => `<a href="#" data-page="${n}">${label}</a>`;
         const out = [];
-        out.push(page > 1 ? `<a data-page="${page - 1}">&laquo; previous</a>` : '<span class="dis">&laquo; previous</span>');
+        out.push(page > 1 ? link(page - 1, '&laquo; previous') : '<span class="disabled">&laquo; previous </span>');
+
+        let pages;
         if (total) {
           const set = new Set([1, total]);
-          for (let i = page - 2; i <= page + 2; i++) if (i >= 1 && i <= total) set.add(i);
-          let prev = 0;
-          [...set].sort((x, y) => x - y).forEach(n => {
-            if (n - prev > 1) out.push('<span class="dis">…</span>');
-            out.push(n === page ? `<span class="cur">${n}</span>` : `<a data-page="${n}">${n}</a>`);
-            prev = n;
-          });
+          if (total <= 10) for (let i = 1; i <= total; i++) set.add(i);
+          else for (let i = page - 3; i <= page + 3; i++) if (i >= 1 && i <= total) set.add(i);
+          pages = [...set].sort((x, y) => x - y);
         } else {
-          out.push(`<span class="cur">${page}</span>`);
+          pages = [page];
         }
-        out.push(hasNext ? `<a data-page="${page + 1}">next &raquo;</a>` : '<span class="dis">next &raquo;</span>');
-        box.innerHTML = out.join(' ');
+        let prev = 0;
+        pages.forEach(n => {
+          if (n - prev > 1) out.push('<span class="page-current">&hellip;</span>');
+          out.push(n === page
+            ? `<span class="page-current active">${n}</span>`
+            : `<span class="page-current">${link(n, n)}</span>`);
+          prev = n;
+        });
+
+        out.push(hasNext ? link(page + 1, 'next &raquo;') : '<span class="disabled">next &raquo;</span>');
+        box.innerHTML = `<span class="page-links">${out.join(' ')}</span>`;
       }
 
       async function showFull(key, page) {
@@ -696,7 +784,6 @@
         };
 
         const ul = $('full-grid');
-        ul.className = 'grid full k-' + sec.kind;
         ul.innerHTML = '<li class="msg">Loading…</li>';
         refreshHead(false);
         window.scrollTo(0, 0);
@@ -717,7 +804,7 @@
         }
         if (stale()) return;
 
-        fillGrid(ul, sec.kind, items, page > 1 ? 'No more results.' : sec.empty(myUser));
+        fillFull(ul, sec.kind, items, page > 1 ? 'No more results.' : sec.empty(myUser));
 
         // A short page reveals the exact total for free
         if (!(key === 'projects' && useFound) && items.length < size && items.length > 0) {
@@ -741,8 +828,9 @@
       (function() {
         const img = $('site-logo');
         const candidates = [
+          'https://cdn.scratch.mit.edu/scratchr2/static/__9df8705ead146d0ff4b9ef4e86644347__/images/logo_sm.png',
+          'https://cdn.scratch.mit.edu/scratchr2/static/__9df8705ead146d0ff4b9ef4e86644347__/images/logo.png',
           'https://cdn.scratch.mit.edu/scratchr2/static/__0b77027edd8c5758537a8bc19a9ae817__/images/logo_sm.png',
-          'https://cdn.scratch.mit.edu/scratchr2/static/__0b77027edd8c5758537a8bc19a9ae817__/images/logo.png',
           'https://scratch.mit.edu/images/logo_sm.png',
         ];
         let i = 0;
