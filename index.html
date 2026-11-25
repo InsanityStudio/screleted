@@ -215,8 +215,11 @@
       let foundProjects = [];   // projects recovered through curated studios
       let useFound = false;     // true once at least one was found
       let featuredExtra = null; // the user's featured project, when it is theirs but missing from their project list
+      let favoritesOwn = [];    // user's own projects recovered by scanning their favorites
       let apiProjectsPreview = null;  // first page of /projects (null = not loaded yet)
-      let projectsRawCount = null;    // project count as reported by the API list
+
+      // Progressive cache of the full project list, used for "View all" pagination.
+      let fullProjects = { user: null, apiItems: [], fetchedThrough: 0, exhausted: false, merged: null, done: false };
 
       const $ = id => document.getElementById(id);
 
@@ -479,19 +482,65 @@
                '?limit=' + limit + '&offset=' + offset;
       }
 
+      // ---------- Shared-project ordering helpers ----------
+      // A project's "shared" timestamp from history; missing values sort to the end.
+      function sharedTime(p) {
+        const s = p && p.history && p.history.shared;
+        if (!s) return 0;
+        const t = Date.parse(s);
+        return isNaN(t) ? 0 : t;
+      }
+
+      // Merge several project lists: dedupe by id, newest-shared first.
+      function dedupeAndSortProjects(list) {
+        const seen = new Set();
+        const out = [];
+        for (const p of list) {
+          if (!p || p.id == null) continue;
+          const k = String(p.id);
+          if (seen.has(k)) continue;
+          seen.add(k);
+          out.push(p);
+        }
+        out.sort((a, b) => sharedTime(b) - sharedTime(a));
+        return out;
+      }
+
       // ---------- Counts in the section headers: "Followers (205)" ----------
       // The API has no count endpoint: a short preview already tells the exact total,
       // otherwise it is found with a few limit=1 probes (see countItems), one section at a time.
       const COUNTED = ['projects', 'favorites', 'following', 'followers'];
       let countChain = Promise.resolve();
 
-      function setSectionCount(key, n) {
-        if (key === 'projects' && !useFound) {
-          projectsRawCount = n;
-          if (featuredExtra) n += 1;
+      const countCache = new Map();
+      const countKey = (user, key) => user.toLowerCase() + '|' + key;
+
+      // Total shown under "Shared Projects": API count + recovered projects that
+      // are demonstrably not in the API preview, or the exact merged length once known.
+      function projectsTotalCount() {
+        if (!currentUser) return null;
+        if (fullProjects.user === currentUser && fullProjects.merged && fullProjects.exhausted) {
+          return fullProjects.merged.length;
         }
+        if (useFound) return mergedProjects().length;
+        const base = countCache.get(countKey(currentUser, 'projects'));
+        if (base == null) return null;
+        const previewIds = new Set((apiProjectsPreview || []).map(p => String(p.id)));
+        const extraIds = new Set();
+        for (const p of favoritesOwn) if (!previewIds.has(String(p.id))) extraIds.add(String(p.id));
+        if (featuredExtra && !previewIds.has(String(featuredExtra.id))) extraIds.add(String(featuredExtra.id));
+        return base + extraIds.size;
+      }
+
+      function setSectionCount(key, n) {
         const el = document.querySelector('#section-' + key + ' .count');
-        if (el) el.textContent = ' (' + n + ')';
+        if (!el) return;
+        if (key === 'projects') {
+          const total = projectsTotalCount();
+          if (total != null) el.textContent = ' (' + total + ')';
+          return;
+        }
+        el.textContent = ' (' + n + ')';
       }
 
       function scheduleCount(username, key, items, token) {
@@ -601,24 +650,71 @@
         return true;   // too many to check: assume it is listed
       }
 
-      // What the Shared Projects preview shows: API list (or studio-recovered list), plus the featured project if missing
-      function mergedProjects() {
-        const base = useFound ? foundProjects : (apiProjectsPreview || []);
-        if (featuredExtra && !useFound && !base.some(p => String(p.id) === String(featuredExtra.id))) {
-          return [featuredExtra].concat(base);
+      // ---------- Full project list (for "View all") ----------
+      function resetFullProjects() {
+        fullProjects = { user: null, apiItems: [], fetchedThrough: 0, exhausted: false, merged: null, done: false };
+      }
+      function invalidateFullProjects() {
+        fullProjects.done = false;
+        fullProjects.merged = null;
+      }
+
+      // Fetch every /projects page (up to 10), merge with recovered projects,
+      // dedupe and sort. Cached per load; invalidated when extras change.
+      async function ensureProjectsList(username, token) {
+        if (fullProjects.user === username && fullProjects.done) return fullProjects.merged;
+        if (fullProjects.user !== username) {
+          resetFullProjects();
+          fullProjects.user = username;
         }
-        return base;
+        while (!fullProjects.exhausted && fullProjects.fetchedThrough < 10) {
+          if (token !== loadToken) return null;
+          const page = fullProjects.fetchedThrough;
+          try {
+            const r = await fetchScratchAPI(sectionEndpoint(username, 'projects', 40, page * 40));
+            const data = Array.isArray(r.data) ? r.data : [];
+            fullProjects.apiItems.push(...data);
+            fullProjects.fetchedThrough++;
+            if (data.length < 40) fullProjects.exhausted = true;
+          } catch (e) {
+            fullProjects.exhausted = true;
+            break;
+          }
+        }
+        const merged = dedupeAndSortProjects([
+          ...fullProjects.apiItems,
+          ...foundProjects,
+          ...favoritesOwn,
+          ...(featuredExtra ? [featuredExtra] : []),
+        ]);
+        fullProjects.merged = merged;
+        fullProjects.done = true;
+        return merged;
+      }
+
+      // What the Shared Projects preview shows: API list (or studio-recovered list),
+      // plus favorites-recovered projects and the featured project, deduped and
+      // sorted newest-shared-first.
+      function mergedProjects() {
+        const parts = [];
+        if (useFound) parts.push(...foundProjects);
+        else if (apiProjectsPreview) parts.push(...apiProjectsPreview);
+        parts.push(...favoritesOwn);
+        if (featuredExtra) parts.push(featuredExtra);
+        return dedupeAndSortProjects(parts);
       }
 
       function refreshProjectsPreview() {
-        if (apiProjectsPreview === null && !useFound) return;   // preview not loaded yet; it will include the extra itself
+        if (apiProjectsPreview === null && !useFound && !favoritesOwn.length) return;   // nothing to render yet
         const box = $('section-projects');
+        if (!box) return;
         const shown = mergedProjects();
         if (!shown.length) return;
         fillGrid(box.querySelector('.grid'), 'project', shown.slice(0, previewLimit('projects')));
         box.querySelector('[data-view-all]').style.display = '';
-        const raw = useFound ? foundProjects.length : projectsRawCount;
-        if (raw != null) setSectionCount('projects', raw);
+        const el = box.querySelector('.count');
+        const total = projectsTotalCount();
+        if (el && total != null) el.textContent = ' (' + total + ')';
       }
 
       async function loadFeatured(user, token) {
@@ -646,12 +742,22 @@
         catch (e) { listed = !(e && e.notFound); }   // no list at all -> add it; other errors -> leave it out
         if (token !== loadToken || listed) return;
 
+        // Fetch the real shared timestamp so it sorts correctly; fall back to "now"
+        // (which puts it first) when unavailable.
+        let history = null;
+        try {
+          const pr = await fetchScratchAPI('/projects/' + id);
+          history = pr && pr.data && pr.data.history;
+        } catch (e) { /* ignore */ }
+        if (!history || !history.shared) history = { shared: new Date().toISOString() };
+
         featuredExtra = {
           id, title: fd.title || 'Untitled',
           image: `https://cdn2.scratch.mit.edu/get_image/project/${id}_144x108.png`,
-          author: { username: fd.creator || user.username },
+          author: { username: fd.creator || user.username, id: user.id },
+          history,
         };
-        if (useFound && !foundProjects.some(p => String(p.id) === String(id))) foundProjects.unshift(featuredExtra);
+        invalidateFullProjects();
         refreshProjectsPreview();
       }
 
@@ -662,8 +768,9 @@
         foundProjects = [];
         useFound = false;
         featuredExtra = null;
+        favoritesOwn = [];
         apiProjectsPreview = null;
-        projectsRawCount = null;
+        resetFullProjects();
         hideFull();
 
         const alertBox = $('alert-view');
@@ -706,6 +813,9 @@
           if (token !== loadToken) return;
           const projects = results[0];
 
+          // Background recovery: any of the user's own projects that appear in their favorites.
+          findProjectsViaFavorites(user, token);
+
           const studioItems = results[Object.keys(SECTIONS).indexOf('studios')];
           if ((!projects || !projects.length) && studioItems && studioItems.length) {
             findProjectsViaStudios(user, token);   // runs in the background
@@ -719,6 +829,49 @@
         }
       }
 
+
+      // ---------- Recover projects through favorites ----------
+      // Many users favorite their own projects. Scan the favorites list and collect
+      // any project whose author id matches this user, so it can be shown under
+      // Shared Projects even if it is missing from /users/NAME/projects.
+      const FAVORITES_SCAN_MAX_PAGES = 10;   // 400 favorites checked at most
+
+      async function findProjectsViaFavorites(user, token) {
+        const uid = user.id != null ? String(user.id) : null;
+        const uname = user.username.toLowerCase();
+        const isMine = p => {
+          const aid = p && p.author && p.author.id;
+          if (uid != null && aid != null) return String(aid) === uid;
+          const aun = ((p && p.author && p.author.username) || (p && p.username) || '').toLowerCase();
+          return aun === uname;
+        };
+
+        const found = new Map();
+
+        for (let page = 0; page < FAVORITES_SCAN_MAX_PAGES; page++) {
+          if (token !== loadToken) return;
+          let data;
+          try {
+            const r = await fetchScratchAPI(sectionEndpoint(user.username, 'favorites', 40, page * 40));
+            data = Array.isArray(r.data) ? r.data : [];
+          } catch (err) { break; }
+          if (!data.length) break;
+
+          let added = false;
+          for (const p of data) {
+            if (isMine(p) && !found.has(String(p.id))) {
+              found.set(String(p.id), p);
+              added = true;
+            }
+          }
+          if (added && token === loadToken) {
+            favoritesOwn = [...found.values()];
+            invalidateFullProjects();
+            refreshProjectsPreview();
+          }
+          if (data.length < 40) break;
+        }
+      }
 
       // ---------- Recover projects through curated studios ----------
       // For accounts with curated studios but no listed projects: look inside each
@@ -751,12 +904,14 @@
 
         const render = () => {
           foundProjects = [...found.values()];
-          if (featuredExtra && !found.has(featuredExtra.id)) foundProjects.unshift(featuredExtra);
           useFound = foundProjects.length > 0;
+          invalidateFullProjects();
           if (!useFound) return;
-          fillGrid(ul, 'project', foundProjects.slice(0, previewLimit('projects')));
+          fillGrid(ul, 'project', mergedProjects().slice(0, previewLimit('projects')));
           viewAll.style.display = '';
-          setSectionCount('projects', foundProjects.length);
+          const total = projectsTotalCount();
+          const el = box.querySelector('.count');
+          if (el && total != null) el.textContent = ' (' + total + ')';
         };
 
         await runPool(studios, STUDIO_SCAN_CONCURRENCY, async st => {
@@ -772,7 +927,12 @@
               const mine = String(p.creator_id) === String(user.id) ||
                            String(p.username || '').toLowerCase() === uname;
               if (mine && !found.has(p.id)) {
-                found.set(p.id, { id: p.id, title: p.title, image: p.image, author: { username: p.username || user.username } });
+                // keep `history` so the merged list can sort by shared time
+                found.set(p.id, {
+                  id: p.id, title: p.title, image: p.image,
+                  author: { username: p.username || user.username },
+                  history: p.history,
+                });
                 added = true;
               }
             }
@@ -795,13 +955,11 @@
 
       // Totals: the API has no count endpoint, so they are learned from a short last page
       // or, failing that, found with a handful of limit=1 probes (exponential + binary search).
-      const countCache = new Map();
-      const countKey = (user, key) => user.toLowerCase() + '|' + key;
       function getCount(key) {
-        if (key === 'projects' && useFound) return foundProjects.length;
+        if (key === 'projects') return projectsTotalCount();
+        if (!currentUser) return null;
         const c = countCache.get(countKey(currentUser, key));
-        if (c == null) return null;
-        return (key === 'projects' && featuredExtra) ? c + 1 : c;
+        return c == null ? null : c;
       }
 
       async function fetchRange(username, key, start, count) {
@@ -875,8 +1033,8 @@
         userLink.textContent = myUser;
         userLink.dataset.user = myUser;
 
-        const refreshHead = hasNext => {
-          const c = getCount(key);
+        const refreshHead = (hasNext, totalOverride) => {
+          const c = totalOverride != null ? totalOverride : getCount(key);
           $('full-section').textContent = sec.fullTitle + (c != null ? ` (${c})` : '');
           renderPaging(page, c != null ? Math.max(1, Math.ceil(c / size)) : null, hasNext);
         };
@@ -887,29 +1045,44 @@
         window.scrollTo(0, 0);
 
         let items;
-        try {
-          items = (key === 'projects' && useFound)
-            ? foundProjects.slice((page - 1) * size, page * size)
-            : await fetchRange(myUser, key, (page - 1) * size, size);
-        } catch (err) {
+        let totalOverride = null;
+        if (key === 'projects') {
+          // Full merged, sorted list (cached). Extras from favorites/featured are
+          // interleaved by shared timestamp so pagination stays correct.
+          let list;
+          try { list = await ensureProjectsList(myUser, loadToken); }
+          catch (e) { list = null; }
           if (stale()) return;
-          ul.innerHTML = '';
-          const li = document.createElement('li');
-          li.className = 'msg';
-          li.textContent = errorText(err);
-          ul.appendChild(li);
-          return;
+          if (list == null) list = mergedProjects();
+          items = list.slice((page - 1) * size, page * size);
+          totalOverride = list.length;
+        } else {
+          try {
+            items = await fetchRange(myUser, key, (page - 1) * size, size);
+          } catch (err) {
+            if (stale()) return;
+            ul.innerHTML = '';
+            const li = document.createElement('li');
+            li.className = 'msg';
+            li.textContent = errorText(err);
+            ul.appendChild(li);
+            return;
+          }
         }
         if (stale()) return;
 
         const apiLen = items.length;
-        if (key === 'projects' && !useFound && page === 1 && featuredExtra) items = [featuredExtra].concat(items);
         fillFull(ul, sec.kind, items, page > 1 ? 'No more results.' : sec.empty(myUser));
 
+        if (key === 'projects') {
+          refreshHead(page * size < totalOverride, totalOverride);
+          return;
+        }
+
         // A short page reveals the exact total for free
-        if (!(key === 'projects' && useFound) && apiLen < size && apiLen > 0) {
+        if (apiLen < size && apiLen > 0) {
           countCache.set(countKey(myUser, key), (page - 1) * size + apiLen);
-        } else if (!(key === 'projects' && useFound) && page === 1 && apiLen === 0) {
+        } else if (page === 1 && apiLen === 0) {
           countCache.set(countKey(myUser, key), 0);
         }
         refreshHead(apiLen >= size);
