@@ -1,2 +1,2 @@
-# [screleted](https://insanitystudio.github.io/screleted)
+# [screleted](https://secreleted.pages.dev)
 View any Scratch profile you want.
