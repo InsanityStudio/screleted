@@ -1,2 +1,2 @@
-# [screleted](https://secreleted.pages.dev)
+# [screleted](https://screleted.pages.dev)
 View any Scratch profile you want.
