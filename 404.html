@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Redirecting…</title>
+  <script>
+    // GitHub Pages serves this file for any missing path, e.g. /screleted/kaj.
+    // Redirect it to /screleted/?user=kaj; index.html then shows the profile
+    // and restores the pretty /screleted/kaj address.
+    //
+    // segmentsToKeep = 1 for a project site (username.github.io/REPO/),
+    // 0 for a user site or custom domain (username.github.io/ or example.com/).
+    var segmentsToKeep = 1;
+
+    var l = window.location;
+    var parts = l.pathname.split('/');
+    var base = parts.slice(0, 1 + segmentsToKeep).join('/') + '/';
+    var name = parts.slice(1 + segmentsToKeep)[0] || '';
+    l.replace(l.protocol + '//' + l.host + base + (name ? '?user=' + name : '') + l.hash);
+  </script>
+</head>
+<body>Redirecting…</body>
+</html>
