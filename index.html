@@ -355,8 +355,8 @@
         if (token !== loadToken) return;
         let status;
         if (exists === true)       status = '<span class="ok">Exists</span>';
-        else if (exists === false) status = '<span class="del">Deleted</span> <small>(profile page no longer exists)</small>';
-        else                       status = '<span class="unk">Unknown</span> <small>(status check unavailable)</small>';
+        else if (exists === false) status = '<span class="del">Deleted</span>';
+        else                       status = '<span class="unk">Unknown</span>';
         box.innerHTML = `<div>Account: ${status}</div>` + joinedLine;
       }
 
