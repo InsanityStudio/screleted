@@ -23,6 +23,7 @@
     .grid.preview.k-studio  { gap: 40px; }
     .grid.preview.k-user    { gap: 37px; }
 
+    .note { padding: 10px 26px 0; color: #575e75; font-size: 13px; font-style: italic; }
     .card { width: 144px; flex: 0 0 auto; }
     .card img { display: block; background: #f2f2f2; object-fit: cover; }
     .card a { color: #855cd6; text-decoration: none; }
@@ -201,6 +202,8 @@
       let currentUser = null;   // username currently displayed
       let loadToken = 0;        // ignore results from outdated loads
       let full = { key: null, page: 1 };
+      let foundProjects = [];   // projects recovered through curated studios
+      let useFound = false;     // true once at least one was found
 
       const $ = id => document.getElementById(id);
 
@@ -343,6 +346,7 @@
               <a href="#" data-view-all="${key}" style="display: none;">View all</a>
             </div>
             <div class="box-content" style="min-height: 60px;">
+              <div class="note" style="display: none;"></div>
               <ul class="grid preview k-${SECTIONS[key].kind}"><li class="msg">Loading…</li></ul>
             </div>`;
           wrap.appendChild(box);
@@ -390,6 +394,8 @@
       async function loadProfile(username) {
         if (!username) return;
         const token = ++loadToken;
+        foundProjects = [];
+        useFound = false;
         hideFull();
 
         const alertBox = $('alert-view');
@@ -431,12 +437,93 @@
           const projects = results[0];
           setFeatured(projects && projects.length ? projects[0] : null);
 
+          const studioItems = results[Object.keys(SECTIONS).indexOf('studios')];
+          if ((!projects || !projects.length) && studioItems && studioItems.length) {
+            findProjectsViaStudios(user, token);   // runs in the background
+          }
+
         } catch (err) {
           if (token !== loadToken) return;
           const msg = err.notFound ? `Error: User “${esc(username)}” not found` : `Error: ${esc(err.message)}`;
           alertBox.innerHTML = `<div class="error-message">${msg}</div>`;
           console.error('Profile load error:', err);
         }
+      }
+
+
+      // ---------- Recover projects through curated studios ----------
+      // For accounts with curated studios but no listed projects: look inside each
+      // curated studio for projects whose creator is this user.
+      const STUDIO_SCAN_MAX_STUDIOS = 40;   // curated studios to check (one API page)
+      const STUDIO_SCAN_MAX_PAGES = 3;      // pages of 40 projects checked per studio
+      const STUDIO_SCAN_CONCURRENCY = 4;
+
+      async function runPool(list, size, worker) {
+        let next = 0;
+        await Promise.all(Array.from({ length: Math.min(size, list.length) }, async () => {
+          while (next < list.length) { const i = next++; await worker(list[i], i); }
+        }));
+      }
+
+      async function findProjectsViaStudios(user, token) {
+        const box = $('section-projects');
+        const ul = box.querySelector('.grid');
+        const note = box.querySelector('.note');
+        const viewAll = box.querySelector('[data-view-all]');
+        const setNote = t => { note.style.display = t ? '' : 'none'; note.textContent = t || ''; };
+
+        setNote('Checking curated studios for projects by this user…');
+        let studios;
+        try {
+          const r = await fetchScratchAPI(sectionEndpoint(user.username, 'studios', STUDIO_SCAN_MAX_STUDIOS, 0));
+          studios = Array.isArray(r.data) ? r.data : [];
+        } catch (err) { if (token === loadToken) setNote(''); return; }
+        if (token !== loadToken || !studios.length) { if (token === loadToken) setNote(''); return; }
+
+        const uname = user.username.toLowerCase();
+        const found = new Map();
+        let done = 0;
+
+        const render = () => {
+          foundProjects = [...found.values()];
+          useFound = foundProjects.length > 0;
+          if (!useFound) return;
+          fillGrid(ul, 'project', foundProjects.slice(0, previewLimit('projects')));
+          viewAll.style.display = '';
+        };
+
+        await runPool(studios, STUDIO_SCAN_CONCURRENCY, async st => {
+          for (let page = 0; page < STUDIO_SCAN_MAX_PAGES; page++) {
+            if (token !== loadToken) return;
+            let data;
+            try {
+              const r = await fetchScratchAPI(`/studios/${st.id}/projects?limit=40&offset=${page * 40}`);
+              data = Array.isArray(r.data) ? r.data : [];
+            } catch (err) { break; }
+            let added = false;
+            for (const p of data) {
+              const mine = String(p.creator_id) === String(user.id) ||
+                           String(p.username || '').toLowerCase() === uname;
+              if (mine && !found.has(p.id)) {
+                found.set(p.id, { id: p.id, title: p.title, image: p.image, author: { username: p.username || user.username } });
+                added = true;
+              }
+            }
+            if (added && token === loadToken) {
+              const first = !useFound;
+              render();
+              if (first) setFeatured(foundProjects[0]);
+            }
+            if (data.length < 40) break;
+          }
+          done++;
+          if (token === loadToken) setNote(`Checking curated studios for projects by this user… (${done}/${studios.length}, ${found.size} found)`);
+        });
+
+        if (token !== loadToken) return;
+        setNote(found.size
+          ? `${found.size} project${found.size > 1 ? 's' : ''} found by searching the ${studios.length} studio${studios.length > 1 ? 's' : ''} this user curates (up to ${STUDIO_SCAN_MAX_PAGES * 40} projects per studio checked). Scratch doesn't list these on the profile itself.`
+          : `Checked ${studios.length} curated studio${studios.length > 1 ? 's' : ''}: none of this user's projects were found.`);
       }
 
       // ---------- "View all" pages ----------
@@ -459,6 +546,14 @@
         const ul = $('full-grid');
         ul.innerHTML = '<li class="msg">Loading…</li>';
         window.scrollTo(0, 0);
+
+        if (key === 'projects' && useFound) {
+          const items = foundProjects.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+          fillGrid(ul, sec.kind, items, 'No more results.');
+          $('pager-prev').disabled = page <= 1;
+          $('pager-next').disabled = foundProjects.length <= page * PAGE_SIZE;
+          return;
+        }
 
         const myKey = key, myPage = page, myUser = currentUser;
         try {
