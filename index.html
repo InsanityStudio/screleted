@@ -9,7 +9,8 @@
   <style>
     #profile-data .loading-img { display: none; }
     .error-message { color: #d9534f; padding: 10px; font-weight: bold; }
-    #topnav .logo { background: none; width: 100px; height: 40px; display: inline-block; margin-top: 5px; }
+    #topnav .logo { background: none; float: left; width: auto; height: 50px; margin: 0 20px 0 0; padding: 0; display: flex; align-items: center; }
+    #topnav .logo img { height: 32px; width: auto; margin: 0 !important; display: block; }
     #profile-bio, #profile-status { white-space: pre-wrap; word-wrap: break-word; }
 
     .grid { display: flex; flex-wrap: wrap; gap: 14px 30px; padding: 12px 26px; margin: 0; list-style: none; }
@@ -17,17 +18,24 @@
     .grid .empty { width: 100%; box-sizing: border-box; background: #d9ecf7; border: 1px solid #c5e0f0; border-radius: 6px;
                    text-align: center; font-weight: bold; font-size: 18px; color: #575e75; padding: 32px 20px; }
     .card { width: 144px; }
-    .card.user { width: 77px; }
+    .card.user { width: 62px; }
     .card img { display: block; background: #f2f2f2; object-fit: cover; }
-    .card.user img { width: 77px; height: 77px; }
+    .card.user img { width: 62px; height: 62px; }
     .card:not(.user) img { width: 144px; height: 108px; }
     .card a { color: #855cd6; text-decoration: none; }
+    .card.studio { width: 200px; }
+    .card.studio img { width: 200px; height: 124px; }
+    .card.user .name { font-size: 12px; }
     .card .name { display: block; padding: 6px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
                   font-size: 14px; font-weight: bold; }
     .logo-fallback { color: #fff; font-weight: 900; font-size: 22px; letter-spacing: 1px; line-height: 40px; }
     .pager { display: flex; justify-content: center; align-items: center; gap: 16px; padding: 14px; }
-    .pager button { background: #4d97ff; color: #fff; border: 0; border-radius: 4px; padding: 8px 16px; font-weight: bold; cursor: pointer; }
-    .pager button:disabled { background: #c9d4e8; cursor: default; }
+    .pager button { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center;
+                    height: 38px; padding: 0 20px; border-radius: 19px; background: #4d97ff; color: #fff;
+                    font: bold 14px/1 "Helvetica Neue", Helvetica, Arial, sans-serif; cursor: pointer; user-select: none; }
+    .pager button:hover:not(:disabled) { background: #3d86ee; }
+    .pager button:disabled { background: #dfe6f3; color: #a3b0c9; cursor: default; }
+    .pager #pager-label { font: 14px "Helvetica Neue", Helvetica, Arial, sans-serif; color: #575e75; min-width: 60px; text-align: center; }
     #full-back { cursor: pointer; }
   </style>
 </head>
@@ -37,7 +45,7 @@
       <div class="innerwrap">
         <div class="container">
           <a href="https://scratch.mit.edu/" class="logo">
-            <img id="site-logo" alt="Scratch" style="height: 30px; margin-top: 10px;">
+            <img id="site-logo" alt="Scratch">
           </a>
           <ul class="site-nav">
             <li><a href="https://scratch.mit.edu/projects/editor/">Create</a></li>
@@ -152,7 +160,8 @@
       // 'https://scratch-proxy.YOURNAME.workers.dev'
       const WORKER_URL = 'https://scratch-proxy.a225tunc.workers.dev';
 
-      const previewLimit = key => SECTIONS[key].kind === 'user' ? 10 : 6;  // items on the profile page
+      const PREVIEW_LIMITS = { projects: 5, favorites: 5, studios: 4, following: 9, followers: 9 };
+      const previewLimit = key => PREVIEW_LIMITS[key];  // items on the profile page
       const PAGE_SIZE = 40;       // items per page in "View all" (API max is 40)
 
       const DEFAULT_AVATAR = 'https://cdn2.scratch.mit.edu/get_image/user/default_60x60.png';
@@ -268,7 +277,7 @@
             </a>`;
         } else if (kind === 'studio') {
           const url = `https://scratch.mit.edu/studios/${item.id}/`;
-          li.className = 'card';
+          li.className = 'card studio';
           li.innerHTML = `
             <a href="${url}" target="_blank" rel="noopener"><img src="${esc(item.image || DEFAULT_PROJECT)}" alt=""></a>
             <a class="name" href="${url}" target="_blank" rel="noopener">${esc(item.title)}</a>`;
@@ -485,6 +494,14 @@
       $('full-back').addEventListener('click', hideFull);
       $('pager-prev').addEventListener('click', () => showFull(full.key, full.page - 1));
       $('pager-next').addEventListener('click', () => showFull(full.key, full.page + 1));
+
+      $('search-input').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const username = this.value.trim();
+          if (username) loadProfile(username);
+        }
+      });
 
       $('profile-search-form').addEventListener('submit', function(e) {
         e.preventDefault();
