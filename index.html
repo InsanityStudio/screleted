@@ -4,6 +4,37 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>screleted</title>
+  <meta name="description" content="Screleted: a fast Scratch profile and studio viewer.">
+  <link rel="preconnect" href="https://scratch-proxy.a225tunc.workers.dev" crossorigin>
+  <link rel="preconnect" href="https://cdn.scratch.mit.edu">
+  <link rel="preconnect" href="https://cdn2.scratch.mit.edu">
+  <script>
+    // Start the first API requests right away. Inline scripts further down wait for the
+    // stylesheets below to finish, which used to delay every request. The main script
+    // picks these promises up from window.__early.
+    (function () {
+      try {
+        var W = 'https://scratch-proxy.a225tunc.workers.dev';   // keep in sync with WORKER_URL
+        var base = location.hostname === 'insanitystudio.github.io' ? '/screleted/' : '/';
+        var parts = location.pathname.slice(base.length).split('/').filter(Boolean);
+        var q = new URLSearchParams(location.search);
+        if (q.get('studio') || parts[0] === 'studios') return;
+        var u = (q.get('user') || (parts[0] === 'users' && parts[1] ? decodeURIComponent(parts[1]) : '') || 'kaj').trim(); // 'kaj' = default user
+        if (!u) return;
+        var e = encodeURIComponent(u), early = window.__early = {};
+        var go = function (endpoint) {
+          var p = fetch(W + endpoint); p.catch(function () {});
+          early[endpoint.toLowerCase()] = p;
+        };
+        go('/users/' + e);
+        [['projects', 5], ['favorites', 5], ['studios/curate', 4], ['following', 9], ['followers', 9]].forEach(function (x) {
+          go('/users/' + e + '/' + x[0] + '?limit=' + x[1] + '&offset=0');
+        });
+        go('/__featured/' + e);
+        go('/__exists/' + e);
+      } catch (err) {}
+    })();
+  </script>
   <link rel="stylesheet" href="https://cdn.scratch.mit.edu/scratchr2/static/__9df8705ead146d0ff4b9ef4e86644347__/css/main.css">
   <link rel="stylesheet" href="https://cdn.scratch.mit.edu/scratchr2/static/__9df8705ead146d0ff4b9ef4e86644347__/css/pages/profile.css">
   <style>
@@ -287,7 +318,7 @@
                   <h3 class="featured-project-heading">Featured Project</h3>
                   <div class="stage" style="width: 282px;">
                     <a href="#" id="featured-project-link">
-                      <img id="featured-project-img" src="https://cdn2.scratch.mit.edu/get_image/project/1147906174_282x210.png" width="282" height="210" alt="Featured project" style="background: #f2f2f2; object-fit: cover;">
+                      <img id="featured-project-img" width="282" height="210" alt="Featured project" style="background: #f2f2f2; object-fit: cover;">
                     </a>
                   </div>
                   <span class="title">
@@ -477,13 +508,38 @@
 
       function notFoundError() { const e = new Error('HTTP 404'); e.notFound = true; return e; }
 
-      async function fetchScratchAPI(endpoint) {
+      // Requests started by the <head> script, keyed by lower-cased endpoint.
+      function takeEarly(key) {
+        const e = window.__early && window.__early[key];
+        if (e) delete window.__early[key];
+        return e || null;
+      }
+      function withTimeout(promise, ms = 10000) {
+        return Promise.race([promise, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
+      }
+
+      // Identical requests are shared (and re-used for 5 minutes). Scratch usernames are
+      // case-insensitive, so keys are lower-cased. Failures are never cached.
+      const apiCache = new Map();
+      function fetchScratchAPI(endpoint) {
+        const key = endpoint.toLowerCase();
+        const hit = apiCache.get(key);
+        if (hit && Date.now() - hit.t < 300000) return hit.p;
+        const p = fetchScratchAPIUncached(endpoint, key);
+        apiCache.set(key, { t: Date.now(), p });
+        p.catch(() => { if (apiCache.get(key) && apiCache.get(key).p === p) apiCache.delete(key); });
+        if (apiCache.size > 400) apiCache.delete(apiCache.keys().next().value);
+        return p;
+      }
+
+      async function fetchScratchAPIUncached(endpoint, key) {
         const target = SCRATCH_API_BASE + endpoint;
         const failures = [];
 
         // 1) Your own Worker (if set), otherwise a direct request
         try {
-          const res = await fetchWithTimeout(WORKER_URL ? WORKER_URL + endpoint : target);
+          const early = takeEarly(key);
+          const res = early ? await withTimeout(early) : await fetchWithTimeout(WORKER_URL ? WORKER_URL + endpoint : target);
           if (res.status === 404) throw notFoundError();
           if (res.ok) return { data: await res.json() };
           failures.push((WORKER_URL ? 'worker: ' : 'direct: ') + res.status);
@@ -548,7 +604,9 @@
       async function checkAccountExists(username) {
         if (!WORKER_URL) return null;
         try {
-          const r = await fetchWithTimeout(WORKER_URL + '/__exists/' + encodeURIComponent(username));
+          const ep = '/__exists/' + encodeURIComponent(username);
+          const early = takeEarly(ep.toLowerCase());
+          const r = early ? await withTimeout(early) : await fetchWithTimeout(WORKER_URL + ep);
           if (!r.ok) return null;
           const j = await r.json();
           return typeof j.exists === 'boolean' ? j.exists : null;
@@ -598,21 +656,21 @@
           li.className = 'card user';
           li.innerHTML = `
             <a href="#" data-user="${esc(item.username)}" title="View ${esc(item.username)} in this viewer">
-              <img src="${esc(src)}" alt="">
+              <img src="${esc(src)}" alt="" loading="lazy" decoding="async">
               <span class="name">${esc(item.username)}</span>
             </a>`;
         } else if (kind === 'studio') {
           const url = BASE + encodeURIComponent(item.id);
           li.className = 'card studio';
           li.innerHTML = `
-            <a class="thumb" href="${url}" data-studio-id="${esc(item.id)}"><img src="${esc(item.image || DEFAULT_PROJECT)}" alt=""><span class="badge"><svg width="16" height="12" viewBox="0 0 16 12" fill="#fff"><circle cx="8" cy="3.2" r="2.4"/><path d="M3.5 11c0-2.6 2-4.2 4.5-4.2s4.5 1.6 4.5 4.2z"/><circle cx="3" cy="4.4" r="1.7"/><circle cx="13" cy="4.4" r="1.7"/><path d="M0 10.6c0-1.8 1.2-3 3-3 .4 0 .7 0 1 .2-.8.7-1.3 1.7-1.4 2.8zM16 10.6c0-1.8-1.2-3-3-3-.4 0-.7 0-1 .2.8.7 1.3 1.7 1.4 2.8z"/></svg></span></a>
+            <a class="thumb" href="${url}" data-studio-id="${esc(item.id)}"><img src="${esc(item.image || DEFAULT_PROJECT)}" alt="" loading="lazy" decoding="async"><span class="badge"><svg width="16" height="12" viewBox="0 0 16 12" fill="#fff"><circle cx="8" cy="3.2" r="2.4"/><path d="M3.5 11c0-2.6 2-4.2 4.5-4.2s4.5 1.6 4.5 4.2z"/><circle cx="3" cy="4.4" r="1.7"/><circle cx="13" cy="4.4" r="1.7"/><path d="M0 10.6c0-1.8 1.2-3 3-3 .4 0 .7 0 1 .2-.8.7-1.3 1.7-1.4 2.8zM16 10.6c0-1.8-1.2-3-3-3-.4 0-.7 0-1 .2.8.7 1.3 1.7 1.4 2.8z"/></svg></span></a>
             <a class="name" href="${url}" data-studio-id="${esc(item.id)}" title="${esc(item.title)}">${esc(item.title)}</a>`;
         } else {
           const url = `https://scratch.mit.edu/projects/${item.id}/`;
           const author = item.author && item.author.username;
           li.className = 'card project';
           li.innerHTML = `
-            <a href="${url}" target="_blank" rel="noopener"><img src="${esc(item.image || DEFAULT_PROJECT)}" alt=""></a>
+            <a href="${url}" target="_blank" rel="noopener"><img src="${esc(item.image || DEFAULT_PROJECT)}" alt="" loading="lazy" decoding="async"></a>
             <a class="name" href="${url}" target="_blank" rel="noopener" title="${esc(item.title)}">${esc(item.title)}</a>
             ${author ? `<span class="by">by <a href="#" data-user="${esc(author)}">${esc(author)}</a></span>` : ''}`;
         }
@@ -633,7 +691,7 @@
           li.className = 'user thumb item';
           li.innerHTML = `
             <a href="${profileUrl(item.username)}" data-user="${esc(item.username)}" class="avatar-wrapper ${badge ? 'avatar-badge-wrapper' : ''}">
-              <img class="lazy ${badge ? 'avatar-badge' : ''}" width="60" height="60" src="${esc(src)}" style="display: block;">
+              <img loading="lazy" decoding="async" class="lazy ${badge ? 'avatar-badge' : ''}" width="60" height="60" src="${esc(src)}" style="display: block;">
             </a>
             <span class="title"><a href="${profileUrl(item.username)}" data-user="${esc(item.username)}">${esc(item.username)}</a></span>`;
         } else if (kind === 'studio') {
@@ -642,7 +700,7 @@
           li.className = 'gallery thumb item';
           li.innerHTML = `
             <a href="${url}" class="image" data-studio-id="${esc(item.id)}">
-              <span class="image"><img class="lazy" width="170" height="100" src="${src}" style="display: block;" onerror="this.onerror=null;this.src='${esc(item.image || DEFAULT_PROJECT)}'"></span>
+              <span class="image"><img loading="lazy" decoding="async" class="lazy" width="170" height="100" src="${src}" style="display: block;" onerror="this.onerror=null;this.src='${esc(item.image || DEFAULT_PROJECT)}'"></span>
               <span class="stats"><span class="icon-sm studio white"></span></span>
             </a>
             <span class="title"><a href="${url}" data-studio-id="${esc(item.id)}">${esc(item.title)}</a></span>`;
@@ -653,7 +711,7 @@
           li.className = 'project thumb item';
           li.innerHTML = `
             <a href="${url}" target="_blank" rel="noopener">
-              <img class="lazy image" width="144" height="108" src="${src}" style="display: block;" onerror="this.onerror=null;this.src='${esc(item.image || DEFAULT_PROJECT)}'">
+              <img loading="lazy" decoding="async" class="lazy image" width="144" height="108" src="${src}" style="display: block;" onerror="this.onerror=null;this.src='${esc(item.image || DEFAULT_PROJECT)}'">
             </a>
             <span class="title"><a href="${url}" target="_blank" rel="noopener">${esc(item.title)}</a></span>
             <span class="owner">${author ? `by <a href="${profileUrl(author)}" data-user="${esc(author)}">${esc(author)}</a>` : ''}</span>`;
@@ -670,7 +728,9 @@
           ul.appendChild(li);
           return;
         }
-        items.forEach(it => ul.appendChild(createFullItem(kind, it)));
+        const frag = document.createDocumentFragment();
+        items.forEach(it => frag.appendChild(createFullItem(kind, it)));
+        ul.appendChild(frag);
       }
 
       function fillGrid(ul, kind, items, emptyMsg) {
@@ -682,7 +742,9 @@
           ul.appendChild(li);
           return;
         }
-        items.forEach(it => ul.appendChild(createCard(kind, it)));
+        const frag = document.createDocumentFragment();
+        items.forEach(it => frag.appendChild(createCard(kind, it)));
+        ul.appendChild(frag);
       }
 
       function errorText(err) {
@@ -764,14 +826,14 @@
           return;
         }
         if (countCache.has(ck)) { setSectionCount(key, countCache.get(ck)); return; }
-        countChain = countChain.then(async () => {
+        (async () => {
           if (token !== loadToken) return;
           try {
             const n = await countItems(username, key);
             countCache.set(ck, n);
             if (token === loadToken) setSectionCount(key, n);
           } catch (e) { /* leave the count out */ }
-        });
+        })();
       }
 
       // ---------- Profile page sections ----------
@@ -843,7 +905,9 @@
       async function fetchFeatured(username) {
         if (!WORKER_URL) return null;
         try {
-          const r = await fetchWithTimeout(WORKER_URL + '/__featured/' + encodeURIComponent(username));
+          const ep = '/__featured/' + encodeURIComponent(username);
+          const early = takeEarly(ep.toLowerCase());
+          const r = early ? await withTimeout(early) : await fetchWithTimeout(WORKER_URL + ep);
           if (!r.ok) return null;
           const j = await r.json();
           const fd = j && j.featured_project_data;
@@ -882,16 +946,16 @@
         }
         while (!fullProjects.exhausted && fullProjects.fetchedThrough < 10) {
           if (token !== loadToken) return null;
-          const page = fullProjects.fetchedThrough;
-          try {
-            const r = await fetchScratchAPI(sectionEndpoint(username, 'projects', 40, page * 40));
-            const data = Array.isArray(r.data) ? r.data : [];
+          const first = fullProjects.fetchedThrough, pages = [];
+          for (let p = first; p < Math.min(first + 3, 10); p++) pages.push(p);
+          const results = await Promise.all(pages.map(p =>
+            fetchScratchAPI(sectionEndpoint(username, 'projects', 40, p * 40))
+              .then(r => Array.isArray(r.data) ? r.data : []).catch(() => null)));
+          for (const data of results) {
+            if (data === null) { fullProjects.exhausted = true; break; }
             fullProjects.apiItems.push(...data);
             fullProjects.fetchedThrough++;
-            if (data.length < 40) fullProjects.exhausted = true;
-          } catch (e) {
-            fullProjects.exhausted = true;
-            break;
+            if (data.length < 40) { fullProjects.exhausted = true; break; }
           }
         }
         const merged = dedupeAndSortProjects([
@@ -988,50 +1052,6 @@
         return true;
       }
 
-      async function loadFeatured(user, token) {
-        const res = await fetchFeatured(user.username);
-        if (token !== loadToken || !res) return;
-        const fd = res.data;
-        const id = fd.id;
-        const thumb = fd.thumbnail_url ? (fd.thumbnail_url.startsWith('//') ? 'https:' + fd.thumbnail_url : fd.thumbnail_url) : '';
-        setFeatured({
-          id, title: fd.title || 'Untitled',
-          image: `https://cdn2.scratch.mit.edu/get_image/project/${id}_282x210.png`,
-          fallback: thumb,
-        }, res.label);
-
-        // Also list it under Shared Projects if it is by this user and not already listed.
-        // Compare IDs when the data has them, otherwise usernames.
-        const creatorId = fd.creator_id != null ? fd.creator_id : fd.creator_pk;
-        const sameUser = creatorId != null
-          ? String(creatorId) === String(user.id)
-          : String(fd.creator || '').toLowerCase() === user.username.toLowerCase();
-        if (!sameUser) return;
-
-        let listed;
-        try { listed = await projectsContain(user.username, id); }
-        catch (e) { listed = !(e && e.notFound); }   // no list at all -> add it; other errors -> leave it out
-        if (token !== loadToken || listed) return;
-
-        // Fetch the real shared timestamp so it sorts correctly; fall back to "now"
-        // (which puts it first) when unavailable.
-        let history = null;
-        try {
-          const pr = await fetchScratchAPI('/projects/' + id);
-          history = pr && pr.data && pr.data.history;
-        } catch (e) { /* ignore */ }
-        if (!history || !history.shared) history = { shared: new Date().toISOString() };
-
-        featuredExtra = {
-          id, title: fd.title || 'Untitled',
-          image: `https://cdn2.scratch.mit.edu/get_image/project/${id}_144x108.png`,
-          author: { username: fd.creator || user.username, id: user.id },
-          history,
-        };
-        invalidateFullProjects();
-        refreshProjectsPreview();
-      }
-
       async function loadProfile(username, urlMode = 'push', section = null) {
         if (!username) return;
         currentStudioId = null;
@@ -1039,6 +1059,9 @@
         $('profile-view').style.display = '';
         setUrl(username, section, urlMode);
         const token = ++loadToken;
+        // Warm the cache: these only need the name, so they run alongside /users/NAME.
+        Object.keys(SECTIONS).forEach(k =>
+          fetchScratchAPI(sectionEndpoint(username, k, previewLimit(k), 0)).catch(() => {}));
         foundProjects = [];
         useFound = false;
         featuredExtra = null;
@@ -1255,7 +1278,7 @@
             ${username ? '</a>' : '</span>'}
             <div class="studio-project-info">
               <a class="studio-project-title" href="https://scratch.mit.edu/projects/${encodeURIComponent(id)}/" target="_blank" rel="noopener" title="${esc(title)}">${esc(title)}</a>
-              ${username ? `<a class="studio-project-username" href="#" data-user="${esc(username)}">${esc(username)}</a>` : '<span class="studio-project-username">Creator unavailable</span>'}
+              ${username ? `<a class="studio-project-username" href="#" data-user="${esc(username)}">${esc(username)}</a>` : `<span class="studio-project-username">${project._pending ? '…' : 'Creator unavailable'}</span>`}
             </div>
           </div>`;
         const avatarImage = li.querySelector('.studio-project-avatar');
@@ -1265,20 +1288,21 @@
         return li;
       }
 
+      // Draws tiles immediately and returns [project, tile] pairs so creator details
+      // can be filled in afterwards without holding up the grid.
       function appendStudioProjects(projects) {
         const grid = $('studio-projects-grid');
         const valid = (Array.isArray(projects) ? projects : []).filter(p => p && p.id != null);
-        if (!studioNextOffset && !valid.length) {
-          grid.innerHTML = '<div class="studio-projects-message">This studio hasn’t added any projects yet.</div>';
-          return;
-        }
+        const empty = '<div class="studio-projects-message">This studio hasn’t added any projects yet.</div>';
+        if (!studioNextOffset && !valid.length) { grid.innerHTML = empty; return []; }
+        const frag = document.createDocumentFragment(), pairs = [];
         valid.forEach(project => {
-          const tile = renderStudioProject(project);
-          if (tile) grid.appendChild(tile);
+          const tile = renderStudioProject(Object.assign({}, project, { _pending: true }));
+          if (tile) { frag.appendChild(tile); pairs.push([project, tile]); }
         });
-        if (!grid.children.length) {
-          grid.innerHTML = '<div class="studio-projects-message">This studio hasn’t added any projects yet.</div>';
-        }
+        grid.appendChild(frag);
+        if (!grid.children.length) grid.innerHTML = empty;
+        return pairs;
       }
 
       async function loadMoreStudioProjects(token, retry = false) {
@@ -1293,20 +1317,14 @@
           const { data } = await fetchScratchAPI(`/studios/${encodeURIComponent(currentStudioId)}/projects?limit=${STUDIO_PAGE_SIZE}&offset=${studioNextOffset}`);
           if (token !== loadToken || token !== studioLoadToken) return;
           const items = Array.isArray(data) ? data : [];
-          // Resolve missing creator details before drawing the tiles. Run a small
-          // number of lookups concurrently to avoid flooding the Scratch API.
-          const prepared = new Array(items.length);
-          let nextProject = 0;
-          const workerCount = Math.min(6, items.length);
-          await Promise.all(Array.from({ length: workerCount }, async () => {
-            while (nextProject < items.length) {
-              const index = nextProject++;
-              prepared[index] = await prepareStudioProject(items[index]);
-              if (token !== loadToken || token !== studioLoadToken) return;
-            }
-          }));
-          if (token !== loadToken || token !== studioLoadToken) return;
-          appendStudioProjects(prepared);
+          const pairs = appendStudioProjects(items);
+          // Fill in creator names/avatars in the background (6 lookups at a time).
+          runPool(pairs, 6, async ([project, tile]) => {
+            const prepared = await prepareStudioProject(project);
+            if (token !== studioLoadToken || !tile.isConnected) return;
+            const fresh = renderStudioProject(prepared);
+            if (fresh) tile.replaceWith(fresh);
+          });
           studioNextOffset += items.length;
           studioHasMore = items.length === STUDIO_PAGE_SIZE;
           if (studioHasMore) {
@@ -1417,28 +1435,29 @@
 
         const found = new Map();
 
-        for (let page = 0; page < FAVORITES_SCAN_MAX_PAGES; page++) {
+        const BATCH = 3;
+        for (let start = 0; start < FAVORITES_SCAN_MAX_PAGES; start += BATCH) {
           if (token !== loadToken) return;
-          let data;
-          try {
-            const r = await fetchScratchAPI(sectionEndpoint(user.username, 'favorites', 40, page * 40));
-            data = Array.isArray(r.data) ? r.data : [];
-          } catch (err) { break; }
-          if (!data.length) break;
-
-          let added = false;
-          for (const p of data) {
-            if (isMine(p) && !found.has(String(p.id))) {
-              found.set(String(p.id), p);
-              added = true;
+          const pages = [];
+          for (let p = start; p < Math.min(start + BATCH, FAVORITES_SCAN_MAX_PAGES); p++) pages.push(p);
+          const results = await Promise.all(pages.map(p =>
+            fetchScratchAPI(sectionEndpoint(user.username, 'favorites', 40, p * 40))
+              .then(r => Array.isArray(r.data) ? r.data : []).catch(() => null)));
+          if (token !== loadToken) return;
+          let added = false, finished = false;
+          for (const data of results) {
+            if (!data || !data.length) { finished = true; break; }
+            for (const p of data) {
+              if (isMine(p) && !found.has(String(p.id))) { found.set(String(p.id), p); added = true; }
             }
+            if (data.length < 40) { finished = true; break; }
           }
-          if (added && token === loadToken) {
+          if (added) {
             favoritesOwn = [...found.values()];
             invalidateFullProjects();
             refreshProjectsPreview();
           }
-          if (data.length < 40) break;
+          if (finished) break;
         }
       }
 
@@ -1540,10 +1559,18 @@
         };
         if (!(await has(0))) return 0;
         let lo = 0, hi = 1;
-        while (hi < 1000000 && await has(hi)) { lo = hi; hi *= 2; }
+        while (hi < 1000000 && await has(hi)) { lo = hi; hi *= 4; }
+        // lo exists, hi does not: probe 3 points at once, shrinking the range 4x per round.
         while (hi - lo > 1) {
-          const mid = (lo + hi) >> 1;
-          if (await has(mid)) lo = mid; else hi = mid;
+          const step = (hi - lo) / 4, pts = [];
+          for (let i = 1; i < 4; i++) {
+            const p = Math.floor(lo + step * i);
+            if (p > lo && p < hi && !pts.includes(p)) pts.push(p);
+          }
+          const res = await Promise.all(pts.map(has));
+          let nlo = lo, nhi = hi;
+          for (let i = 0; i < pts.length; i++) { if (res[i]) nlo = pts[i]; else { nhi = pts[i]; break; } }
+          lo = nlo; hi = nhi;
         }
         return lo + 1;
       }
@@ -1692,7 +1719,12 @@
       }
       fitLogo();
       window.addEventListener('load', fitLogo);
-      window.addEventListener('resize', fitLogo);
+      let fitQueued = false;
+      window.addEventListener('resize', () => {
+        if (fitQueued) return;
+        fitQueued = true;
+        requestAnimationFrame(() => { fitQueued = false; fitLogo(); });
+      });
       $('site-logo') && $('site-logo').addEventListener('load', fitLogo);
 
       // ---------- Events ----------
@@ -1738,7 +1770,7 @@
         if (username) loadProfile(username);
       });
 
-      window.addEventListener('load', () => {
+      const start = () => {
         const studioId = studioFromUrl();
         if (studioId) {
           loadStudio(studioId, 'replace');
@@ -1751,7 +1783,8 @@
           $('search-input').value = initial;
           loadProfile(initial, fromUrl ? 'replace' : 'none', section);
         }
-      });
+      };
+      start();
 
       window.addEventListener('popstate', () => {
         const studioId = studioFromUrl();
