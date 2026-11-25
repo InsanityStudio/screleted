@@ -1198,7 +1198,10 @@
 
         $('profile-view').style.display = 'none';
         $('full-view').style.display = 'none';
-        $('studio-view').style.display = '';
+        // #studio-view is hidden by CSS until a studio route is opened.
+        // Use an explicit display value: an empty inline value would leave
+        // the stylesheet's `display: none` rule in effect.
+        $('studio-view').style.display = 'block';
         $('studio-alert').textContent = '';
         $('studio-title').textContent = 'Loading studio…';
         $('studio-description').textContent = '';
