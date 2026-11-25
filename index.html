@@ -74,6 +74,90 @@
     .acct .del { color: #d9534f; font-weight: bold; }
     .acct .unk { color: #888; font-weight: bold; }
     .acct small { color: #888; }
+
+
+    /* ---------- Studio pages ---------- */
+    #studio-view { display: none; }
+    #studio-view .studio-shell {
+      box-sizing: border-box; display: grid; grid-template-columns: 240px minmax(0, 1fr);
+      max-width: 1020px; margin: 25px auto 35px; padding: 0 30px; align-items: stretch;
+    }
+    #studio-view .studio-info, #studio-view .studio-tabs {
+      box-sizing: border-box; min-width: 0; background: #f7f7f7; border: 1px solid #e0e0e0;
+      box-shadow: 0 2px 3px rgba(0,0,0,.18); color: #322f31;
+    }
+    #studio-view .studio-info {
+      display: flex; flex-direction: column; gap: 12px; padding: 18px 13px;
+      border-right: 0; border-radius: 8px 0 0 8px;
+    }
+    #studio-view .studio-title {
+      color: #554747; font-size: 22px; font-weight: bold; line-height: 26px;
+      overflow-wrap: anywhere;
+    }
+    #studio-view .studio-image {
+      display: block; width: 100%; height: 141px; box-sizing: border-box; object-fit: cover;
+      padding: 5px; background: #fff; border: 1px solid #ccc;
+    }
+    #studio-view .studio-description {
+      color: #322f31; font-size: 13px; line-height: 20px; white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    #studio-view .studio-info-footer-stats {
+      margin-top: auto; padding-top: 10px; border-top: 1px solid #e0e0e0;
+      color: #666; font-size: 12px; line-height: 20px;
+    }
+    #studio-view .studio-tabs {
+      display: flex; flex-direction: column; min-height: 500px; border-radius: 0 8px 8px 0;
+      background: #f7f7f7;
+    }
+    #studio-view .studio-tab-nav {
+      display: flex; align-items: end; gap: 3px; min-height: 45px; padding: 0 18px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    #studio-view .studio-tab-nav span {
+      display: inline-block; padding: 10px 13px 8px; border: 1px solid #ccc; border-bottom-color: #f7f7f7;
+      border-radius: 5px 5px 0 0; background: #f7f7f7; color: #666; font-size: 13px; font-weight: bold;
+      position: relative; top: 1px;
+    }
+    #studio-view .studio-projects { padding: 18px 20px 22px; }
+    #studio-view .studio-header-container { padding: 0 0 12px; }
+    #studio-view .studio-header-container h2 { margin: 0; color: #554747; font-size: 22px; line-height: 26px; }
+    #studio-view .studio-projects-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(145px, 1fr)); gap: 22px 16px;
+    }
+    #studio-view .studio-project-tile { min-width: 0; background: transparent; }
+    #studio-view .studio-project-image-link { display: block; line-height: 0; }
+    #studio-view .studio-project-image {
+      display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; box-sizing: border-box;
+      background: #f2f2f2; border: 1px solid #ddd;
+    }
+    #studio-view .studio-project-bottom { display: flex; align-items: center; gap: 8px; padding-top: 6px; min-width: 0; }
+    #studio-view .studio-project-avatar { width: 36px; height: 36px; flex: 0 0 36px; object-fit: cover; border: 1px solid #ddd; }
+    #studio-view .studio-project-info { display: flex; flex-direction: column; justify-content: center; min-width: 0; line-height: 19px; }
+    #studio-view .studio-project-title, #studio-view .studio-project-username {
+      display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      font-size: 13px; text-decoration: none;
+    }
+    #studio-view .studio-project-title { color: #855cd6; }
+    #studio-view .studio-project-username { color: #575e75; }
+    #studio-view .studio-project-username:hover, #studio-view .studio-project-title:hover { text-decoration: underline; }
+    #studio-view .studio-projects-message { grid-column: 1 / -1; padding: 16px 0; color: #888; font-size: 13px; font-style: italic; }
+    #studio-view .studio-grid-load-more { padding: 18px 0 0; text-align: center; }
+    #studio-view .studio-grid-load-more button {
+      height: 32px; padding: 0 12px; border: 1px solid #999; border-radius: 4px;
+      background: linear-gradient(#fff, #ccc); color: #666; font-size: 13px; cursor: pointer;
+    }
+    #studio-view .studio-grid-load-more button:hover { background: #e6e6e6; }
+    #studio-view .studio-alert { padding: 12px 20px 0; color: #d9534f; font-weight: bold; font-size: 13px; }
+    @media (max-width: 767px) {
+      #studio-view .studio-shell { grid-template-columns: minmax(0, 1fr); gap: 14px; margin-top: 18px; padding: 0 12px; }
+      #studio-view .studio-info { border-right: 1px solid #e0e0e0; border-radius: 8px; }
+      #studio-view .studio-image { max-width: 300px; }
+      #studio-view .studio-tabs { min-height: 0; border-radius: 8px; }
+      #studio-view .studio-projects { padding: 16px 13px 20px; }
+      #studio-view .studio-projects-grid { grid-template-columns: repeat(auto-fill, minmax(125px, 1fr)); gap: 18px 12px; }
+    }
+
   </style>
 </head>
 <body>
@@ -119,6 +203,36 @@
             <div class="pagination" id="paging"></div>
           </div>
         </div>
+      </div>
+
+
+      <!-- Studio page; uses the existing site header above it. -->
+      <div id="studio-view">
+        <div class="studio-alert" id="studio-alert"></div>
+        <main class="studio-shell">
+          <aside class="studio-info">
+            <div class="studio-title" id="studio-title">Loading studio…</div>
+            <img class="studio-image" id="studio-image" alt="Studio cover">
+            <div class="studio-description" id="studio-description"></div>
+            <div class="studio-info-footer-stats">
+              <div>Updated <span id="studio-updated">Unknown</span></div>
+              <div><span id="studio-followers">—</span> followers</div>
+              <div><span id="studio-project-count">—</span> projects</div>
+            </div>
+          </aside>
+          <section class="studio-tabs">
+            <div class="studio-tab-nav"><span>Projects</span></div>
+            <div class="studio-projects">
+              <div class="studio-header-container"><h2>Projects</h2></div>
+              <div class="studio-projects-grid" id="studio-projects-grid">
+                <div class="studio-projects-message">Loading projects…</div>
+              </div>
+              <div class="studio-grid-load-more" id="studio-load-more-wrap" style="display:none;">
+                <button type="button" id="studio-load-more" data-studio-more>Load more</button>
+              </div>
+            </div>
+          </section>
+        </main>
       </div>
 
       <div id="profile-view">
@@ -221,6 +335,13 @@
         u => ({ url: `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`, unwrap: 'raw' }),
       ];
 
+      let currentStudioId = null;
+      let studioNextOffset = 0;
+      let studioHasMore = false;
+      let studioLoadingMore = false;
+      let studioLoadToken = 0;
+      const STUDIO_PAGE_SIZE = 40;
+
       let currentUser = null;   // username currently displayed
       let loadToken = 0;        // ignore results from outdated loads
       let full = { key: null, page: 1 };
@@ -241,7 +362,7 @@
       // Pretty URLs like /screleted/kaj/favorites work through 404.html, which redirects to
       // /screleted/?user=kaj&section=favorites; we then rewrite the address bar back to the
       // pretty URL. URLs used for each section are listed in URL_SECTIONS.
-      const BASE = location.pathname.replace(/index\.html$/, '').replace(/[^/]*$/, '');
+      const BASE = location.hostname === 'insanitystudio.github.io' ? '/screleted/' : '/';
       const DEFAULT_USER = $('search-input').value.trim();
 
       function pathAfterBase() {
@@ -257,6 +378,13 @@
           try { return decodeURIComponent(parts[0]).trim(); } catch (e) { return parts[0].trim(); }
         }
         return '';
+      }
+
+      function studioFromUrl() {
+        const q = new URLSearchParams(location.search).get('studio');
+        if (q && /^\d+$/.test(q.trim())) return q.trim();
+        const parts = pathAfterBase();
+        return parts[0] && /^\d+$/.test(parts[0]) ? parts[0] : '';
       }
 
       function sectionFromUrl() {
@@ -276,6 +404,16 @@
           if (mode === 'replace') history.replaceState({}, '', target);
           else if (location.pathname !== target || location.search) history.pushState({}, '', target);
           document.title = username + (sec ? ' – ' + SECTIONS[sec].fullTitle : '') + ' on screleted';
+        } catch (e) { /* e.g. opened from file:// */ }
+      }
+
+      function setStudioUrl(studioId, mode) {
+        if (mode === 'none') return;
+        try {
+          const target = BASE + encodeURIComponent(String(studioId));
+          if (mode === 'replace') history.replaceState({}, '', target);
+          else if (location.pathname !== target || location.search) history.pushState({}, '', target);
+          document.title = 'Studio ' + studioId + ' on screleted';
         } catch (e) { /* e.g. opened from file:// */ }
       }
 
@@ -418,11 +556,11 @@
               <span class="name">${esc(item.username)}</span>
             </a>`;
         } else if (kind === 'studio') {
-          const url = `https://scratch.mit.edu/studios/${item.id}/`;
+          const url = BASE + encodeURIComponent(item.id);
           li.className = 'card studio';
           li.innerHTML = `
-            <a class="thumb" href="${url}" target="_blank" rel="noopener"><img src="${esc(item.image || DEFAULT_PROJECT)}" alt=""><span class="badge"><svg width="16" height="12" viewBox="0 0 16 12" fill="#fff"><circle cx="8" cy="3.2" r="2.4"/><path d="M3.5 11c0-2.6 2-4.2 4.5-4.2s4.5 1.6 4.5 4.2z"/><circle cx="3" cy="4.4" r="1.7"/><circle cx="13" cy="4.4" r="1.7"/><path d="M0 10.6c0-1.8 1.2-3 3-3 .4 0 .7 0 1 .2-.8.7-1.3 1.7-1.4 2.8zM16 10.6c0-1.8-1.2-3-3-3-.4 0-.7 0-1 .2.8.7 1.3 1.7 1.4 2.8z"/></svg></span></a>
-            <a class="name" href="${url}" target="_blank" rel="noopener" title="${esc(item.title)}">${esc(item.title)}</a>`;
+            <a class="thumb" href="${url}" data-studio-id="${esc(item.id)}"><img src="${esc(item.image || DEFAULT_PROJECT)}" alt=""><span class="badge"><svg width="16" height="12" viewBox="0 0 16 12" fill="#fff"><circle cx="8" cy="3.2" r="2.4"/><path d="M3.5 11c0-2.6 2-4.2 4.5-4.2s4.5 1.6 4.5 4.2z"/><circle cx="3" cy="4.4" r="1.7"/><circle cx="13" cy="4.4" r="1.7"/><path d="M0 10.6c0-1.8 1.2-3 3-3 .4 0 .7 0 1 .2-.8.7-1.3 1.7-1.4 2.8zM16 10.6c0-1.8-1.2-3-3-3-.4 0-.7 0-1 .2.8.7 1.3 1.7 1.4 2.8z"/></svg></span></a>
+            <a class="name" href="${url}" data-studio-id="${esc(item.id)}" title="${esc(item.title)}">${esc(item.title)}</a>`;
         } else {
           const url = `https://scratch.mit.edu/projects/${item.id}/`;
           const author = item.author && item.author.username;
@@ -453,15 +591,15 @@
             </a>
             <span class="title"><a href="${profileUrl(item.username)}" data-user="${esc(item.username)}">${esc(item.username)}</a></span>`;
         } else if (kind === 'studio') {
-          const url = `https://scratch.mit.edu/studios/${item.id}/`;
+          const url = BASE + encodeURIComponent(item.id);
           const src = `https://cdn2.scratch.mit.edu/get_image/gallery/${item.id}_170x100.png`;
           li.className = 'gallery thumb item';
           li.innerHTML = `
-            <a href="${url}" class="image" target="_blank" rel="noopener">
+            <a href="${url}" class="image" data-studio-id="${esc(item.id)}">
               <span class="image"><img class="lazy" width="170" height="100" src="${src}" style="display: block;" onerror="this.onerror=null;this.src='${esc(item.image || DEFAULT_PROJECT)}'"></span>
               <span class="stats"><span class="icon-sm studio white"></span></span>
             </a>
-            <span class="title"><a href="${url}" target="_blank" rel="noopener">${esc(item.title)}</a></span>`;
+            <span class="title"><a href="${url}" data-studio-id="${esc(item.id)}">${esc(item.title)}</a></span>`;
         } else {
           const url = `https://scratch.mit.edu/projects/${item.id}/`;
           const src = `https://cdn2.scratch.mit.edu/get_image/project/${item.id}_144x108.png`;
@@ -850,6 +988,9 @@
 
       async function loadProfile(username, urlMode = 'push', section = null) {
         if (!username) return;
+        currentStudioId = null;
+        $('studio-view').style.display = 'none';
+        $('profile-view').style.display = '';
         setUrl(username, section, urlMode);
         const token = ++loadToken;
         foundProjects = [];
@@ -936,6 +1077,172 @@
           const msg = err.notFound ? `Error: User “${esc(username)}” not found` : `Error: ${esc(err.message)}`;
           alertBox.innerHTML = `<div class="error-message">${msg}</div>`;
           console.error('Profile load error:', err);
+        }
+      }
+
+
+      // ---------- Studio pages ----------
+      function studioUpdatedText(value) {
+        if (!value) return 'Unknown';
+        const d = new Date(value);
+        if (isNaN(d.getTime())) return 'Unknown';
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      }
+
+      function studioImageUrl(studio, studioId) {
+        let src = studio && (studio.image || studio.image_url || studio.thumbnail_url);
+        if (src && typeof src === 'string') {
+          if (src.startsWith('//')) src = 'https:' + src;
+          else if (src.startsWith('/')) src = 'https://scratch.mit.edu' + src;
+          return src;
+        }
+        return `https://cdn2.scratch.mit.edu/get_image/gallery/${encodeURIComponent(studioId)}_170x100.png`;
+      }
+
+      function renderStudioProject(project) {
+        const id = project && project.id;
+        if (id == null) return null;
+        const title = project.title || 'Untitled';
+        const author = project.author || {};
+        const username = author.username || '';
+        const profile = author.profile || {};
+        const images = profile.images || {};
+        const avatar = images['60x60'] || images['90x90'] || DEFAULT_AVATAR;
+        const projectImages = project.images || {};
+        const thumbnail = projectImages['480x360'] || projectImages['282x210'] ||
+          `https://cdn2.scratch.mit.edu/get_image/project/${id}_480x360.png`;
+        const li = document.createElement('div');
+        li.className = 'studio-project-tile';
+        li.innerHTML = `
+          <a class="studio-project-image-link" href="https://scratch.mit.edu/projects/${encodeURIComponent(id)}/" target="_blank" rel="noopener">
+            <img class="studio-project-image" src="${esc(thumbnail)}" alt="${esc(title)}" loading="lazy">
+          </a>
+          <div class="studio-project-bottom">
+            <a href="#" ${username ? `data-user="${esc(username)}"` : ''} title="${esc(username)}">
+              <img class="studio-project-avatar" src="${esc(avatar)}" alt="">
+            </a>
+            <div class="studio-project-info">
+              <a class="studio-project-title" href="https://scratch.mit.edu/projects/${encodeURIComponent(id)}/" target="_blank" rel="noopener" title="${esc(title)}">${esc(title)}</a>
+              ${username ? `<a class="studio-project-username" href="#" data-user="${esc(username)}">${esc(username)}</a>` : '<span class="studio-project-username">Unknown creator</span>'}
+            </div>
+          </div>`;
+        return li;
+      }
+
+      function appendStudioProjects(projects) {
+        const grid = $('studio-projects-grid');
+        const valid = (Array.isArray(projects) ? projects : []).filter(p => p && p.id != null);
+        if (!studioNextOffset && !valid.length) {
+          grid.innerHTML = '<div class="studio-projects-message">This studio hasn’t added any projects yet.</div>';
+          return;
+        }
+        valid.forEach(project => {
+          const tile = renderStudioProject(project);
+          if (tile) grid.appendChild(tile);
+        });
+        if (!grid.children.length) {
+          grid.innerHTML = '<div class="studio-projects-message">This studio hasn’t added any projects yet.</div>';
+        }
+      }
+
+      async function loadMoreStudioProjects(token, retry = false) {
+        if (!currentStudioId || studioLoadingMore || (!studioHasMore && !retry)) return;
+        studioLoadingMore = true;
+        const button = $('studio-load-more');
+        const wrap = $('studio-load-more-wrap');
+        button.disabled = true;
+        button.textContent = 'Loading…';
+        wrap.style.display = '';
+        try {
+          const { data } = await fetchScratchAPI(`/studios/${encodeURIComponent(currentStudioId)}/projects?limit=${STUDIO_PAGE_SIZE}&offset=${studioNextOffset}`);
+          if (token !== loadToken || token !== studioLoadToken) return;
+          const items = Array.isArray(data) ? data : [];
+          appendStudioProjects(items);
+          studioNextOffset += items.length;
+          studioHasMore = items.length === STUDIO_PAGE_SIZE;
+          if (studioHasMore) {
+            button.disabled = false;
+            button.textContent = 'Load more';
+            wrap.style.display = '';
+          } else {
+            wrap.style.display = 'none';
+          }
+        } catch (err) {
+          if (token !== loadToken || token !== studioLoadToken) return;
+          button.disabled = false;
+          button.textContent = 'Retry';
+          button.dataset.retry = 'true';
+          wrap.style.display = '';
+          const grid = $('studio-projects-grid');
+          if (!grid.children.length) {
+            grid.innerHTML = `<div class="studio-projects-message">${esc(errorText(err))}</div>`;
+          }
+        } finally {
+          if (token === loadToken && token === studioLoadToken) studioLoadingMore = false;
+        }
+      }
+
+      async function loadStudio(studioId, urlMode = 'push') {
+        if (!/^\d+$/.test(String(studioId || ''))) return;
+        const id = String(studioId);
+        const token = ++loadToken;
+        studioLoadToken = token;
+        currentStudioId = id;
+        currentUser = null;
+        full = { key: null, page: 1 };
+        studioNextOffset = 0;
+        studioHasMore = false;
+        studioLoadingMore = false;
+        studioHasMore = true; // allow the initial project-page request
+        setStudioUrl(id, urlMode);
+
+        $('profile-view').style.display = 'none';
+        $('full-view').style.display = 'none';
+        $('studio-view').style.display = '';
+        $('studio-alert').textContent = '';
+        $('studio-title').textContent = 'Loading studio…';
+        $('studio-description').textContent = '';
+        $('studio-updated').textContent = 'Unknown';
+        $('studio-followers').textContent = '—';
+        $('studio-project-count').textContent = '—';
+        $('studio-projects-grid').innerHTML = '<div class="studio-projects-message">Loading projects…</div>';
+        $('studio-load-more-wrap').style.display = 'none';
+        window.scrollTo(0, 0);
+
+        try {
+          const { data: studio } = await fetchScratchAPI('/studios/' + encodeURIComponent(id));
+          if (token !== loadToken) return;
+          if (!studio || typeof studio !== 'object' || !studio.id) throw notFoundError();
+
+          const title = studio.title || ('Studio ' + id);
+          $('studio-title').textContent = title;
+          $('studio-description').textContent = studio.description || '';
+          const studioHistory = studio.history || {};
+          const studioStats = studio.stats || {};
+          $('studio-updated').textContent = studioUpdatedText(studio.modified || studio.last_updated || studio.updated || studioHistory.modified);
+          const followerCount = studio.follower_count == null ? studioStats.followers : studio.follower_count;
+          const projectCount = studio.project_count == null ? studioStats.projects : studio.project_count;
+          $('studio-followers').textContent = followerCount == null ? '—' : String(followerCount);
+          $('studio-project-count').textContent = projectCount == null ? '—' : String(projectCount);
+          const cover = $('studio-image');
+          cover.onerror = function() {
+            this.onerror = null;
+            this.src = `https://uploads.scratch.mit.edu/get_image/gallery/${encodeURIComponent(id)}_170x100.png`;
+          };
+          cover.src = studioImageUrl(studio, id);
+          document.title = title + ' on screleted';
+
+          $('studio-projects-grid').innerHTML = '';
+          await loadMoreStudioProjects(token);
+        } catch (err) {
+          if (token !== loadToken) return;
+          $('studio-alert').textContent = err.notFound
+            ? `Studio ${id} could not be found.`
+            : `Could not load this studio: ${err.message}`;
+          $('studio-title').textContent = 'Studio not found';
+          $('studio-projects-grid').innerHTML = '<div class="studio-projects-message">Studio details could not be loaded.</div>';
+          $('studio-load-more-wrap').style.display = 'none';
+          console.error('Studio load error:', err);
         }
       }
 
@@ -1238,6 +1545,22 @@
 
       // ---------- Events ----------
       document.addEventListener('click', function(e) {
+        const studioMore = e.target.closest('[data-studio-more]');
+        if (studioMore) {
+          e.preventDefault();
+          const retry = studioMore.dataset.retry === 'true';
+          studioMore.dataset.retry = 'false';
+          loadMoreStudioProjects(studioLoadToken, retry);
+          return;
+        }
+
+        const studioLink = e.target.closest('[data-studio-id]');
+        if (studioLink && studioLink.dataset.studioId) {
+          e.preventDefault();
+          loadStudio(studioLink.dataset.studioId);
+          return;
+        }
+
         const viewAll = e.target.closest('[data-view-all]');
         if (viewAll) { e.preventDefault(); showFull(viewAll.dataset.viewAll, 1); return; }
 
@@ -1264,16 +1587,26 @@
       });
 
       window.addEventListener('load', () => {
+        const studioId = studioFromUrl();
+        if (studioId) {
+          loadStudio(studioId, 'replace');
+          return;
+        }
         const fromUrl = userFromUrl();
-        const initial = fromUrl || 'kaj';
+        const initial = fromUrl || DEFAULT_USER;
         const section = fromUrl ? sectionFromUrl() : null;
         if (initial) {
           $('search-input').value = initial;
-          loadProfile(initial, 'replace', section);
+          loadProfile(initial, fromUrl ? 'replace' : 'none', section);
         }
       });
 
       window.addEventListener('popstate', () => {
+        const studioId = studioFromUrl();
+        if (studioId) {
+          if (studioId !== currentStudioId) loadStudio(studioId, 'none');
+          return;
+        }
         const u = userFromUrl() || DEFAULT_USER;
         const section = sectionFromUrl();
         if (!u) return;
