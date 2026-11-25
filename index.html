@@ -229,6 +229,8 @@
       let featuredExtra = null; // the user's featured project, when it is theirs but missing from their project list
       let favoritesOwn = [];    // user's own projects recovered by scanning their favorites
       let apiProjectsPreview = null;  // first page of /projects (null = not loaded yet)
+      let featuredFromFallback = false;
+      let currentFeaturedId = null;
 
       // Progressive cache of the full project list, used for "View all" pagination.
       let fullProjects = { user: null, apiItems: [], fetchedThrough: 0, exhausted: false, merged: null, done: false };
@@ -641,6 +643,7 @@
 
       function setFeatured(project, label) {
         document.querySelector('.player').style.display = project ? '' : 'none';
+        currentFeaturedId = project ? String(project.id) : null;
         if (!project) return;
         document.querySelector('.featured-project-heading').textContent = label || 'Featured Project';
         const img = $('featured-project-img');
@@ -730,8 +733,20 @@
         return dedupeAndSortProjects(parts);
       }
 
+      function applyFeaturedFallback(token) {
+        if (token !== loadToken || !featuredFromFallback) return;
+        const projects = mergedProjects();
+        if (!projects.length) { setFeatured(null); return; }
+        const project = projects[0];
+        setFeatured({
+          id: project.id, title: project.title || 'Untitled',
+          image: `https://cdn2.scratch.mit.edu/get_image/project/${project.id}_282x210.png`,
+          fallback: project.image || ''
+        }, 'Featured Project');
+      }
+
       function refreshProjectsPreview() {
-        if (apiProjectsPreview === null && !useFound && !favoritesOwn.length) return;   // nothing to render yet
+        if (apiProjectsPreview === null && !useFound && !favoritesOwn.length) return;
         const box = $('section-projects');
         if (!box) return;
         const shown = mergedProjects();
@@ -742,9 +757,51 @@
           const total = projectsTotalCount();
           if (el && total != null) el.textContent = ' (' + total + ')';
         }
-        // If the full "Shared Projects" page is open, re-render the current page so
-        // newly-recovered / featured projects slot into the correct position.
+        if (featuredFromFallback) applyFeaturedFallback(loadToken);
         if (full.key === 'projects' && currentUser) showFull('projects', full.page, 'none');
+      }
+
+      async function loadFeatured(user, token) {
+        const res = await fetchFeatured(user.username);
+        if (token !== loadToken) return false;
+        if (!res) return false;
+        const fd = res.data;
+        const id = fd.id;
+        const thumb = fd.thumbnail_url ? (fd.thumbnail_url.startsWith('//') ? 'https:' + fd.thumbnail_url : fd.thumbnail_url) : '';
+        featuredFromFallback = false;
+        setFeatured({
+          id, title: fd.title || 'Untitled',
+          image: `https://cdn2.scratch.mit.edu/get_image/project/${id}_282x210.png`,
+          fallback: thumb,
+        }, res.label || 'Featured Project');
+
+        const creatorId = fd.creator_id != null ? fd.creator_id : fd.creator_pk;
+        const sameUser = creatorId != null
+          ? String(creatorId) === String(user.id)
+          : String(fd.creator || '').toLowerCase() === user.username.toLowerCase();
+        if (!sameUser) return true;
+
+        let listed;
+        try { listed = await projectsContain(user.username, id); }
+        catch (e) { listed = !(e && e.notFound); }
+        if (token !== loadToken || listed) return true;
+
+        let history = null;
+        try {
+          const pr = await fetchScratchAPI('/projects/' + id);
+          history = pr && pr.data && pr.data.history;
+        } catch (e) { /* ignore */ }
+        if (!history || !history.shared) history = { shared: new Date().toISOString() };
+
+        featuredExtra = {
+          id, title: fd.title || 'Untitled',
+          image: `https://cdn2.scratch.mit.edu/get_image/project/${id}_144x108.png`,
+          author: { username: fd.creator || user.username, id: user.id },
+          history,
+        };
+        invalidateFullProjects();
+        refreshProjectsPreview();
+        return true;
       }
 
       async function loadFeatured(user, token) {
@@ -798,6 +855,7 @@
         foundProjects = [];
         useFound = false;
         featuredExtra = null;
+        featuredFromFallback = false;
         favoritesOwn = [];
         apiProjectsPreview = null;
         resetFullProjects();
@@ -816,6 +874,7 @@
           alertBox.innerHTML = '';
           currentUser = user.username;
           $('search-input').value = user.username;
+          setUrl(user.username, section, 'replace');
 
           // Username: links to the Scratch profile, but looks like plain text.
           const userLink = `https://scratch.mit.edu/users/${encodeURIComponent(user.username)}/`;
@@ -850,12 +909,16 @@
           updateAccountInfo(user, token);   // background: deleted / exists check
           setFeatured(null);
           buildSectionBoxes();
-          loadFeatured(user, token);   // background: real featured project + label
 
+          const featuredPromise = loadFeatured(user, token);
           const results = await Promise.all(
             Object.keys(SECTIONS).map(k => loadSectionPreview(user.username, k, token)));
           if (token !== loadToken) return;
           const projects = results[0];
+          if (!(await featuredPromise) && token === loadToken) {
+            featuredFromFallback = true;
+            applyFeaturedFallback(token);
+          }
 
           // Background recovery: any of the user's own projects that appear in their favorites.
           findProjectsViaFavorites(user, token);
@@ -1202,11 +1265,11 @@
 
       window.addEventListener('load', () => {
         const fromUrl = userFromUrl();
-        const initial = fromUrl || DEFAULT_USER;
+        const initial = fromUrl || 'kaj';
         const section = fromUrl ? sectionFromUrl() : null;
         if (initial) {
           $('search-input').value = initial;
-          loadProfile(initial, fromUrl ? 'replace' : 'none', section);
+          loadProfile(initial, 'replace', section);
         }
       });
 
