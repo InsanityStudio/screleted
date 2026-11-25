@@ -717,21 +717,17 @@
       async function findProjectsViaStudios(user, token) {
         const box = $('section-projects');
         const ul = box.querySelector('.grid');
-        const note = box.querySelector('.note');
         const viewAll = box.querySelector('[data-view-all]');
-        const setNote = t => { note.style.display = t ? '' : 'none'; note.textContent = t || ''; };
 
-        setNote('Checking curated studios for projects by this user…');
         let studios;
         try {
           const r = await fetchScratchAPI(sectionEndpoint(user.username, 'studios', STUDIO_SCAN_MAX_STUDIOS, 0));
           studios = Array.isArray(r.data) ? r.data : [];
-        } catch (err) { if (token === loadToken) setNote(''); return; }
-        if (token !== loadToken || !studios.length) { if (token === loadToken) setNote(''); return; }
+        } catch (err) { return; }
+        if (token !== loadToken || !studios.length) return;
 
         const uname = user.username.toLowerCase();
         const found = new Map();
-        let done = 0;
 
         const render = () => {
           foundProjects = [...found.values()];
@@ -765,14 +761,9 @@
             }
             if (data.length < 40) break;
           }
-          done++;
-          if (token === loadToken) setNote(`Checking curated studios for projects by this user… (${done}/${studios.length}, ${found.size} found)`);
         });
 
         if (token !== loadToken) return;
-        setNote(found.size
-          ? `${found.size} project${found.size > 1 ? 's' : ''} found by searching the ${studios.length} studio${studios.length > 1 ? 's' : ''} this user curates (up to ${STUDIO_SCAN_MAX_PAGES * 40} projects per studio checked). Scratch doesn't list these on the profile itself.`
-          : `Checked ${studios.length} curated studio${studios.length > 1 ? 's' : ''}: none of this user's projects were found.`);
       }
 
       // ---------- "View all" pages ----------
