@@ -13,6 +13,17 @@
     #topnav .logo img { height: 24px; width: auto; margin: 0 !important; display: block; }
     #profile-bio, #profile-status { white-space: pre-wrap; word-wrap: break-word; }
 
+    /* @mentions in profile text and studio descriptions link to Screleted profiles. */
+    .profile-mention,
+    .profile-mention:link,
+    .profile-mention:visited,
+    .profile-mention:hover,
+    .profile-mention:active {
+      color: #4c97ff !important;
+      text-decoration: none !important;
+      font-weight: inherit !important;
+    }
+
     /* Username in the header is a link, but must look like plain text. */
     #profile-username a.username-link,
     #profile-username a.username-link:link,
@@ -425,6 +436,36 @@
       function esc(s) {
         return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
           ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      }
+
+      // Render @username references as internal Screleted profile links.
+      // Build the content with text nodes so profile/studio text stays safe as plain text.
+      function renderMentions(element, value) {
+        const text = String(value == null ? '' : value);
+        const pattern = /(^|[^A-Za-z0-9_@])@([A-Za-z0-9_-]{3,20})(?![A-Za-z0-9_-])/g;
+        let lastIndex = 0;
+        let match;
+
+        element.textContent = '';
+        while ((match = pattern.exec(text)) !== null) {
+          const mentionStart = match.index + match[1].length;
+          if (mentionStart > lastIndex) {
+            element.appendChild(document.createTextNode(text.slice(lastIndex, mentionStart)));
+          }
+
+          const username = match[2];
+          const link = document.createElement('a');
+          link.className = 'profile-mention';
+          link.href = BASE + 'users/' + encodeURIComponent(username);
+          link.dataset.user = username;
+          link.textContent = '@' + username;
+          element.appendChild(link);
+          lastIndex = pattern.lastIndex;
+        }
+
+        if (lastIndex < text.length) {
+          element.appendChild(document.createTextNode(text.slice(lastIndex)));
+        }
       }
 
       async function fetchWithTimeout(url, ms = 10000) {
@@ -1049,8 +1090,8 @@
           $('profile-country').textContent = profile.country || '';
 
           // bio/status are plain text on Scratch: use textContent (no HTML injection)
-          $('profile-bio').textContent = profile.bio || '';
-          $('profile-status').textContent = profile.status || '';
+          renderMentions($('profile-bio'), profile.bio || '');
+          renderMentions($('profile-status'), profile.status || '');
 
           updateAccountInfo(user, token);   // background: deleted / exists check
           setFeatured(null);
@@ -1327,7 +1368,7 @@
 
           const title = studio.title || ('Studio ' + id);
           $('studio-title').textContent = title;
-          $('studio-description').textContent = studio.description || '';
+          renderMentions($('studio-description'), studio.description || '');
           const studioHistory = studio.history || {};
           const studioStats = studio.stats || {};
           $('studio-updated').textContent = studioUpdatedText(studio.modified || studio.last_updated || studio.updated || studioHistory.modified);
