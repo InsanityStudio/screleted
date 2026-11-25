@@ -9,13 +9,22 @@
   <style>
     #profile-data .loading-img { display: none; }
     .error-message { color: #d9534f; padding: 10px; font-weight: bold; }
-    #topnav .logo {
-        background: none;
-        width: 100px;
-        height: 40px;
-        display: inline-block;
-        margin-top: 5px;
-    }
+    #topnav .logo { background: none; width: 100px; height: 40px; display: inline-block; margin-top: 5px; }
+    #profile-bio, #profile-status { white-space: pre-wrap; word-wrap: break-word; }
+
+    .grid { display: flex; flex-wrap: wrap; gap: 12px; padding: 10px; margin: 0; list-style: none; }
+    .grid .msg { color: #888; font-style: italic; padding: 10px 0; }
+    .card { width: 144px; text-align: left; }
+    .card.user { width: 96px; text-align: center; }
+    .card img { display: block; background: #f2f2f2; object-fit: cover; }
+    .card.user img { width: 80px; height: 80px; border-radius: 50%; margin: 0 auto; }
+    .card:not(.user) img { width: 144px; height: 108px; }
+    .card a { color: #575e75; font-weight: bold; text-decoration: none; }
+    .card .name { display: block; padding: 5px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
+    .pager { display: flex; justify-content: center; align-items: center; gap: 16px; padding: 14px; }
+    .pager button { background: #4d97ff; color: #fff; border: 0; border-radius: 4px; padding: 8px 16px; font-weight: bold; cursor: pointer; }
+    .pager button:disabled { background: #c9d4e8; cursor: default; }
+    #full-back { cursor: pointer; }
   </style>
 </head>
 <body>
@@ -48,74 +57,85 @@
     <div class="container" id="content" style="margin-top: 20px;">
       <div id="alert-view"></div>
 
-      <div class="box" id="profile-data">
-        <div class="box-head">
-          <form id="profile-avatar" class="portrait">
-            <div class="avatar-wrapper">
-              <a href="#" id="profile-avatar-link">
-                <img id="profile-avatar-img" src="https://cdn2.scratch.mit.edu/get_image/user/143563846_60x60.png" width="55" height="55">
-              </a>
-            </div>
-          </form>
-          <div class="header-text">
-            <h2 id="profile-username">Loading...</h2>
-            <p class="profile-details">
-              <span class="group">Scratcher</span>
-              Joined <span id="profile-join-date" title="">Unknown</span>
-              <span class="location" id="profile-country"></span>
-            </p>
+      <!-- Full "View all" page for one section -->
+      <div id="full-view" style="display: none;">
+        <div class="box">
+          <div class="box-head">
+            <h4 id="full-title"></h4>
+            <a id="full-back">&larr; Back to profile</a>
           </div>
-        </div>
-        <div class="box-content" id="profile-box">
-          <div class="action-bar"></div>
-          <div class="inner clearfix">
-            <div class="user-content">
-              <div id="user-details" class="about">
-                <h3>About me</h3>
-                <div id="bio-readonly" class="read-only">
-                  <div class="viewport" style="overflow: auto; max-height: 150px;">
-                    <p class="overview" id="profile-bio">Loading bio...</p>
-                  </div>
-                </div>
-                <h3>What I'm working on</h3>
-                <div id="status-readonly" class="read-only">
-                  <div class="viewport" style="overflow: auto; max-height: 100px;">
-                    <p class="overview" id="profile-status"></p>
-                  </div>
-                </div>
-              </div>
-              <div class="player">
-                <h3 class="featured-project-heading">Featured Project</h3>
-                <div class="stage" style="width: 282px;">
-                  <a href="#" id="featured-project-link">
-                    <img id="featured-project-img" src="https://cdn2.scratch.mit.edu/get_image/project/1147906174_282x210.png" width="282" height="210" alt="Featured project" style="background: #f2f2f2; object-fit: cover;">
-                  </a>
-                </div>
-                <span class="title">
-                  <a class="project-name" id="featured-project-title" href="#">Loading...</a>
-                </span>
-              </div>
-            </div>
-            <div class="doing">
-              <h3>What I've been doing</h3>
-              <div id="activity-feed">
-                <ul class="activity-stream"></ul>
-              </div>
+          <div class="box-content">
+            <ul class="grid" id="full-grid"></ul>
+            <div class="pager">
+              <button id="pager-prev">&larr; Previous</button>
+              <span id="pager-label">Page 1</span>
+              <button id="pager-next">Next &rarr;</button>
             </div>
           </div>
         </div>
       </div>
 
-      <div class="box slider-carousel-container prevent-select" style="margin-top: 20px;">
-        <div class="box-head">
-          <h4>Shared Projects (<span id="shared-count">0</span>)</h4>
-          <a href="#" data-control="view-all">View all</a>
-        </div>
-        <div class="box-content" id="shared" style="min-height: 154.5px;">
-          <div class="viewport" style="overflow: hidden;">
-            <ul class="scroll-content" id="shared-projects-list" style="display: flex; flex-wrap: wrap; gap: 10px; padding: 10px;"></ul>
+      <div id="profile-view">
+        <div class="box" id="profile-data">
+          <div class="box-head">
+            <form id="profile-avatar" class="portrait">
+              <div class="avatar-wrapper">
+                <a href="#" id="profile-avatar-link">
+                  <img id="profile-avatar-img" src="https://cdn2.scratch.mit.edu/get_image/user/143563846_60x60.png" width="55" height="55">
+                </a>
+              </div>
+            </form>
+            <div class="header-text">
+              <h2 id="profile-username">Loading...</h2>
+              <p class="profile-details">
+                <span class="group">Scratcher</span>
+                Joined <span id="profile-join-date" title="">Unknown</span>
+                <span class="location" id="profile-country"></span>
+              </p>
+            </div>
+          </div>
+          <div class="box-content" id="profile-box">
+            <div class="action-bar"></div>
+            <div class="inner clearfix">
+              <div class="user-content">
+                <div id="user-details" class="about">
+                  <h3>About me</h3>
+                  <div id="bio-readonly" class="read-only">
+                    <div class="viewport" style="overflow: auto; max-height: 150px;">
+                      <p class="overview" id="profile-bio">Loading bio...</p>
+                    </div>
+                  </div>
+                  <h3>What I'm working on</h3>
+                  <div id="status-readonly" class="read-only">
+                    <div class="viewport" style="overflow: auto; max-height: 100px;">
+                      <p class="overview" id="profile-status"></p>
+                    </div>
+                  </div>
+                </div>
+                <div class="player">
+                  <h3 class="featured-project-heading">Featured Project</h3>
+                  <div class="stage" style="width: 282px;">
+                    <a href="#" id="featured-project-link">
+                      <img id="featured-project-img" src="https://cdn2.scratch.mit.edu/get_image/project/1147906174_282x210.png" width="282" height="210" alt="Featured project" style="background: #f2f2f2; object-fit: cover;">
+                    </a>
+                  </div>
+                  <span class="title">
+                    <a class="project-name" id="featured-project-title" href="#">Loading...</a>
+                  </span>
+                </div>
+              </div>
+              <div class="doing">
+                <h3>What I've been doing</h3>
+                <div id="activity-feed">
+                  <ul class="activity-stream"></ul>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
+
+        <!-- Section previews (projects, favorites, studios, following, followers) are built here -->
+        <div id="sections"></div>
       </div>
     </div>
   </div>
@@ -126,85 +146,93 @@
 
       // Paste your Cloudflare Worker URL here (no trailing slash), e.g.
       // 'https://scratch-proxy.YOURNAME.workers.dev'
-      const WORKER_URL = 'https://scratch-proxy.a225tunc.workers.dev';
+      const WORKER_URL = '';
 
-      // Fallback chain: if one free proxy is down (e.g. AllOrigins' 522 outage),
-      // we automatically try the next one. All are third-party services with
-      // rate limits, so this is a demo-grade solution, not production-grade.
+      const PREVIEW_LIMIT = 12;   // items shown on the profile page
+      const PAGE_SIZE = 40;       // items per page in "View all" (API max is 40)
+
+      const DEFAULT_AVATAR = 'https://cdn2.scratch.mit.edu/get_image/user/default_60x60.png';
+      const DEFAULT_PROJECT = 'https://cdn2.scratch.mit.edu/get_image/project/1147906174_144x108.png';
+
+      // Sections shown on the profile, in order.
+      const SECTIONS = {
+        projects:  { title: 'Shared Projects',  path: 'projects',       kind: 'project' },
+        favorites: { title: 'Favorites',        path: 'favorites',      kind: 'project' },
+        studios:   { title: 'Studios I Curate', path: 'studios/curate', kind: 'studio'  },
+        following: { title: 'Following',        path: 'following',      kind: 'user'    },
+        followers: { title: 'Followers',        path: 'followers',      kind: 'user'    },
+      };
+
+      // Fallback chain used only if the Worker/direct request fails.
       const CORS_PROXIES = [
-        // AllOrigins /get: wraps the response so we can read the REAL status code
         u => ({ url: `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`, unwrap: 'allorigins' }),
-        // ThingProxy: plain pass-through (100KB / 10 req/s limits)
         u => ({ url: `https://thingproxy.freeboard.io/fetch/${u}`, unwrap: 'raw' }),
-        // cors.lol: plain pass-through
         u => ({ url: `https://api.cors.lol/?url=${encodeURIComponent(u)}`, unwrap: 'raw' }),
-        // CodeTabs: plain pass-through (occasionally returns 400s)
         u => ({ url: `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`, unwrap: 'raw' }),
       ];
 
-      // Don't let a dead proxy hang the page for 20s like the 522 did
+      let currentUser = null;   // username currently displayed
+      let loadToken = 0;        // ignore results from outdated loads
+      let full = { key: null, page: 1 };
+
+      const $ = id => document.getElementById(id);
+
+      function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+          ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      }
+
       async function fetchWithTimeout(url, ms = 10000) {
         const ctrl = new AbortController();
         const timer = setTimeout(() => ctrl.abort(), ms);
-        try {
-          return await fetch(url, { signal: ctrl.signal });
-        } finally {
-          clearTimeout(timer);
-        }
+        try { return await fetch(url, { signal: ctrl.signal }); }
+        finally { clearTimeout(timer); }
       }
+
+      function notFoundError() { const e = new Error('HTTP 404'); e.notFound = true; return e; }
 
       async function fetchScratchAPI(endpoint) {
         const target = SCRATCH_API_BASE + endpoint;
         const failures = [];
 
-        // 1) Your own Worker proxy (reliable), 2) direct, 3) public proxies.
+        // 1) Your own Worker (if set), otherwise a direct request
         try {
           const res = await fetchWithTimeout(WORKER_URL ? WORKER_URL + endpoint : target);
-          if (res.status === 404) { const e = new Error('HTTP 404'); e.notFound = true; throw e; }
-          if (res.ok) return { data: await res.json(), httpCode: res.status };
+          if (res.status === 404) throw notFoundError();
+          if (res.ok) return { data: await res.json() };
           failures.push((WORKER_URL ? 'worker: ' : 'direct: ') + res.status);
         } catch (err) {
           if (err.notFound) throw err;
           failures.push((WORKER_URL ? 'worker: ' : 'direct: ') + (err.message || 'network error'));
         }
 
+        // 2) Public proxies as a last resort
         for (const makeProxy of CORS_PROXIES) {
           const { url, unwrap } = makeProxy(target);
           try {
             const res = await fetchWithTimeout(url);
-
             if (!res.ok) {
-              if (res.status === 404) {
-                const e = new Error('HTTP 404'); e.notFound = true; throw e;
-              }
+              if (res.status === 404) throw notFoundError();
               failures.push(`${new URL(url).hostname}: ${res.status}`);
-              continue; // this proxy is down/rate-limited -> try the next one
+              continue;
             }
-
             const text = await res.text();
-            let httpCode = null;
             let payload = text;
-
             if (unwrap === 'allorigins') {
-              // If AllOrigins' server is down, Cloudflare returns an HTML error
-              // page (and no CORS headers, which is why fetch() used to reject
-              // with "Failed to fetch"). JSON.parse below will throw and we
-              // fall through to the next proxy instead.
               const wrapper = JSON.parse(text);
-              httpCode = wrapper.status && wrapper.status.http_code;
+              const code = wrapper.status && wrapper.status.http_code;
               payload = wrapper.contents;
-              if (httpCode === 404) { const e = new Error('HTTP 404'); e.notFound = true; throw e; }
-              if (httpCode && httpCode >= 400) { failures.push(`allorigins: ${httpCode}`); continue; }
+              if (code === 404) throw notFoundError();
+              if (code && code >= 400) { failures.push(`allorigins: ${code}`); continue; }
             }
-
-            return { data: JSON.parse(payload), httpCode };
+            return { data: JSON.parse(payload) };
           } catch (err) {
-            if (err.notFound) throw err; // a real 404 — don't try other proxies
+            if (err.notFound) throw err;
             failures.push(`${new URL(url).hostname}: ${err.message || 'network error'}`);
           }
         }
 
-        const e = new Error('All CORS proxies are down right now (' + failures.join('; ') + '). Wait a minute and search again.');
+        const e = new Error('Could not reach the Scratch API (' + failures.join('; ') + ').');
         e.proxyOutage = true;
         throw e;
       }
@@ -222,93 +250,227 @@
         return parts.length ? parts.join(', ') + ' ago' : 'just now';
       }
 
-      function createProjectItem(project) {
+      // ---------- Card rendering ----------
+      function createCard(kind, item) {
         const li = document.createElement('li');
-        li.className = 'project thumb item';
-        li.style.width = '144px';
-        li.style.margin = '0';
-        const imgSrc = project.image || 'https://cdn2.scratch.mit.edu/get_image/project/1147906174_144x108.png';
-        li.innerHTML = `
-          <a href="https://scratch.mit.edu/projects/${project.id}/" target="_blank">
-            <img class="lazy image" src="${imgSrc}" width="144" height="108" style="display: block; object-fit: cover;">
-          </a>
-          <span class="title" style="display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 5px 0;">
-            <a href="https://scratch.mit.edu/projects/${project.id}/" target="_blank" style="font-weight: bold; color: #575e75;">${project.title}</a>
-          </span>
-        `;
+        if (kind === 'user') {
+          const imgs = (item.profile && item.profile.images) || {};
+          const src = imgs['90x90'] || imgs['60x60'] || DEFAULT_AVATAR;
+          li.className = 'card user';
+          li.innerHTML = `
+            <a href="#" data-user="${esc(item.username)}" title="View ${esc(item.username)} in this viewer">
+              <img src="${esc(src)}" alt="">
+              <span class="name">${esc(item.username)}</span>
+            </a>`;
+        } else if (kind === 'studio') {
+          const url = `https://scratch.mit.edu/studios/${item.id}/`;
+          li.className = 'card';
+          li.innerHTML = `
+            <a href="${url}" target="_blank" rel="noopener"><img src="${esc(item.image || DEFAULT_PROJECT)}" alt=""></a>
+            <a class="name" href="${url}" target="_blank" rel="noopener">${esc(item.title)}</a>`;
+        } else {
+          const url = `https://scratch.mit.edu/projects/${item.id}/`;
+          li.className = 'card';
+          li.innerHTML = `
+            <a href="${url}" target="_blank" rel="noopener"><img src="${esc(item.image || DEFAULT_PROJECT)}" alt=""></a>
+            <a class="name" href="${url}" target="_blank" rel="noopener">${esc(item.title)}</a>`;
+        }
         return li;
+      }
+
+      function fillGrid(ul, kind, items, emptyMsg) {
+        ul.innerHTML = '';
+        if (!items.length) {
+          const li = document.createElement('li');
+          li.className = 'msg';
+          li.textContent = emptyMsg || 'Nothing here.';
+          ul.appendChild(li);
+          return;
+        }
+        items.forEach(it => ul.appendChild(createCard(kind, it)));
+      }
+
+      function errorText(err) {
+        return err.notFound ? 'Not available for this account.' : 'Could not load: ' + err.message;
+      }
+
+      function sectionEndpoint(username, key, limit, offset) {
+        return '/users/' + encodeURIComponent(username) + '/' + SECTIONS[key].path +
+               '?limit=' + limit + '&offset=' + offset;
+      }
+
+      // ---------- Profile page sections ----------
+      function buildSectionBoxes() {
+        const wrap = $('sections');
+        wrap.innerHTML = '';
+        Object.keys(SECTIONS).forEach(key => {
+          const box = document.createElement('div');
+          box.className = 'box slider-carousel-container prevent-select';
+          box.style.marginTop = '20px';
+          box.id = 'section-' + key;
+          box.innerHTML = `
+            <div class="box-head">
+              <h4>${esc(SECTIONS[key].title)} (<span class="count">…</span>)</h4>
+              <a href="#" data-view-all="${key}">View all</a>
+            </div>
+            <div class="box-content" style="min-height: 60px;">
+              <ul class="grid"><li class="msg">Loading…</li></ul>
+            </div>`;
+          wrap.appendChild(box);
+        });
+      }
+
+      async function loadSectionPreview(username, key, token) {
+        const box = $('section-' + key);
+        const ul = box.querySelector('.grid');
+        const countEl = box.querySelector('.count');
+        try {
+          const { data } = await fetchScratchAPI(sectionEndpoint(username, key, PREVIEW_LIMIT, 0));
+          if (token !== loadToken) return null;
+          const items = Array.isArray(data) ? data : [];
+          fillGrid(ul, SECTIONS[key].kind, items);
+          countEl.textContent = items.length >= PREVIEW_LIMIT ? PREVIEW_LIMIT + '+' : items.length;
+          return items;
+        } catch (err) {
+          if (token !== loadToken) return null;
+          ul.innerHTML = '';
+          const li = document.createElement('li');
+          li.className = 'msg';
+          li.textContent = errorText(err);
+          ul.appendChild(li);
+          countEl.textContent = '?';
+          return null;
+        }
+      }
+
+      function setFeatured(project) {
+        const img = $('featured-project-img');
+        const title = $('featured-project-title');
+        const link = $('featured-project-link');
+        if (project) {
+          img.src = project.image || DEFAULT_PROJECT;
+          title.textContent = project.title;
+          title.href = link.href = `https://scratch.mit.edu/projects/${project.id}/`;
+        } else {
+          img.src = 'https://cdn2.scratch.mit.edu/get_image/project/1147906174_282x210.png';
+          title.textContent = 'No projects yet';
+          title.href = link.href = '#';
+        }
       }
 
       async function loadProfile(username) {
         if (!username) return;
+        const token = ++loadToken;
+        hideFull();
 
-        const alertBox = document.getElementById('alert-view');
-        alertBox.innerHTML = '<div style="padding: 10px; background: #e3f2fd; margin-bottom: 10px;">Loading profile for <strong>' + username + '</strong>...</div>';
+        const alertBox = $('alert-view');
+        alertBox.innerHTML = '<div style="padding: 10px; background: #e3f2fd; margin-bottom: 10px;">Loading profile for <strong>' + esc(username) + '</strong>...</div>';
 
         try {
           const { data: user } = await fetchScratchAPI('/users/' + encodeURIComponent(username));
-          // Shape check: proxies sometimes mask a 404 as a 200 with junk body
+          if (token !== loadToken) return;
           if (!user || typeof user !== 'object' || !user.username) {
             throw new Error(`User “${username}” not found`);
           }
 
           alertBox.innerHTML = '';
+          currentUser = user.username;
+          $('search-input').value = user.username;
 
-          document.getElementById('profile-username').textContent = user.username;
+          $('profile-username').textContent = user.username;
+          const profile = user.profile || {};
 
-          if (user.profile && user.profile.images && user.profile.images['60x60']) {
-              document.getElementById('profile-avatar-img').src = user.profile.images['60x60'];
-          }
-          // (avatar falls back to the default image in the HTML if missing)
-          document.getElementById('profile-avatar-link').href = `https://scratch.mit.edu/users/${user.username}/`;
+          $('profile-avatar-img').src =
+            (profile.images && (profile.images['60x60'] || profile.images['90x90'])) || DEFAULT_AVATAR;
+          $('profile-avatar-link').href = `https://scratch.mit.edu/users/${encodeURIComponent(user.username)}/`;
 
           const joinedIso = user.history && user.history.joined;
-          document.getElementById('profile-join-date').textContent = formatJoinDate(joinedIso);
-          document.getElementById('profile-join-date').title = joinedIso ? joinedIso.split('T')[0] : '';
+          $('profile-join-date').textContent = formatJoinDate(joinedIso);
+          $('profile-join-date').title = joinedIso ? joinedIso.split('T')[0] : '';
+          $('profile-country').textContent = profile.country || '';
 
-          const prof = user.profile || {};
-          document.getElementById('profile-country').textContent = prof.country || '';
+          // bio/status are plain text on Scratch: use textContent (no HTML injection)
+          $('profile-bio').textContent = profile.bio || 'No bio provided.';
+          $('profile-status').textContent = profile.status || 'No status provided.';
 
-          document.getElementById('profile-bio').innerHTML = prof.bio || '<em>No bio provided.</em>';
-          document.getElementById('profile-status').innerHTML = prof.status || '<em>No status provided.</em>';
+          setFeatured(null);
+          $('featured-project-title').textContent = 'Loading...';
+          buildSectionBoxes();
 
-          const { data: rawProjects } = await fetchScratchAPI('/users/' + encodeURIComponent(username) + '/projects?limit=20');
-          const projects = Array.isArray(rawProjects) ? rawProjects : [];
-
-          if (projects.length > 0) {
-            const featured = projects[0];
-            document.getElementById('featured-project-img').src = featured.image;
-            document.getElementById('featured-project-title').textContent = featured.title;
-            document.getElementById('featured-project-title').href = `https://scratch.mit.edu/projects/${featured.id}/`;
-            document.getElementById('featured-project-link').href = `https://scratch.mit.edu/projects/${featured.id}/`;
-          } else {
-            document.getElementById('featured-project-img').src = 'https://cdn2.scratch.mit.edu/get_image/project/1147906174_282x210.png';
-            document.getElementById('featured-project-title').textContent = 'No projects yet';
-            document.getElementById('featured-project-title').href = '#';
-            document.getElementById('featured-project-link').href = '#';
-          }
-
-          const sharedList = document.getElementById('shared-projects-list');
-          sharedList.innerHTML = '';
-          projects.forEach(p => sharedList.appendChild(createProjectItem(p)));
-          document.getElementById('shared-count').textContent = projects.length;
+          const results = await Promise.all(
+            Object.keys(SECTIONS).map(k => loadSectionPreview(user.username, k, token)));
+          if (token !== loadToken) return;
+          const projects = results[0];
+          setFeatured(projects && projects.length ? projects[0] : null);
 
         } catch (err) {
-          const msg = err.notFound ? `Error: User “${username}” not found` : `Error: ${err.message}`;
+          if (token !== loadToken) return;
+          const msg = err.notFound ? `Error: User “${esc(username)}” not found` : `Error: ${esc(err.message)}`;
           alertBox.innerHTML = `<div class="error-message">${msg}</div>`;
           console.error('Profile load error:', err);
         }
       }
 
-      const searchForm = document.getElementById('profile-search-form');
-      searchForm.addEventListener('submit', function(e) {
+      // ---------- "View all" pages ----------
+      function hideFull() {
+        $('full-view').style.display = 'none';
+        $('profile-view').style.display = '';
+        full = { key: null, page: 1 };
+      }
+
+      async function showFull(key, page) {
+        if (!currentUser) return;
+        full = { key, page };
+        const sec = SECTIONS[key];
+        $('profile-view').style.display = 'none';
+        $('full-view').style.display = '';
+        $('full-title').textContent = `${currentUser} — ${sec.title}`;
+        $('pager-label').textContent = 'Page ' + page;
+        $('pager-prev').disabled = true;
+        $('pager-next').disabled = true;
+        const ul = $('full-grid');
+        ul.innerHTML = '<li class="msg">Loading…</li>';
+        window.scrollTo(0, 0);
+
+        const myKey = key, myPage = page, myUser = currentUser;
+        try {
+          const { data } = await fetchScratchAPI(sectionEndpoint(myUser, key, PAGE_SIZE, (page - 1) * PAGE_SIZE));
+          if (full.key !== myKey || full.page !== myPage || currentUser !== myUser) return;
+          const items = Array.isArray(data) ? data : [];
+          fillGrid(ul, sec.kind, items, page > 1 ? 'No more results.' : 'Nothing here.');
+          $('pager-prev').disabled = page <= 1;
+          $('pager-next').disabled = items.length < PAGE_SIZE;
+        } catch (err) {
+          if (full.key !== myKey || full.page !== myPage) return;
+          ul.innerHTML = '';
+          const li = document.createElement('li');
+          li.className = 'msg';
+          li.textContent = errorText(err);
+          ul.appendChild(li);
+          $('pager-prev').disabled = page <= 1;
+        }
+      }
+
+      // ---------- Events ----------
+      document.addEventListener('click', function(e) {
+        const viewAll = e.target.closest('[data-view-all]');
+        if (viewAll) { e.preventDefault(); showFull(viewAll.dataset.viewAll, 1); return; }
+
+        const userLink = e.target.closest('[data-user]');
+        if (userLink) { e.preventDefault(); loadProfile(userLink.dataset.user); window.scrollTo(0, 0); }
+      });
+      $('full-back').addEventListener('click', hideFull);
+      $('pager-prev').addEventListener('click', () => showFull(full.key, full.page - 1));
+      $('pager-next').addEventListener('click', () => showFull(full.key, full.page + 1));
+
+      $('profile-search-form').addEventListener('submit', function(e) {
         e.preventDefault();
-        const username = document.getElementById('search-input').value.trim();
+        const username = $('search-input').value.trim();
         if (username) loadProfile(username);
       });
 
       window.addEventListener('load', () => {
-        const defaultUser = document.getElementById('search-input').value.trim();
+        const defaultUser = $('search-input').value.trim();
         if (defaultUser) loadProfile(defaultUser);
       });
     })();
