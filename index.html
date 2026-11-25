@@ -12,15 +12,19 @@
     #topnav .logo { background: none; width: 100px; height: 40px; display: inline-block; margin-top: 5px; }
     #profile-bio, #profile-status { white-space: pre-wrap; word-wrap: break-word; }
 
-    .grid { display: flex; flex-wrap: wrap; gap: 12px; padding: 10px; margin: 0; list-style: none; }
+    .grid { display: flex; flex-wrap: wrap; gap: 14px 30px; padding: 12px 26px; margin: 0; list-style: none; }
     .grid .msg { color: #888; font-style: italic; padding: 10px 0; }
-    .card { width: 144px; text-align: left; }
-    .card.user { width: 96px; text-align: center; }
+    .grid .empty { width: 100%; box-sizing: border-box; background: #d9ecf7; border: 1px solid #c5e0f0; border-radius: 6px;
+                   text-align: center; font-weight: bold; font-size: 18px; color: #575e75; padding: 32px 20px; }
+    .card { width: 144px; }
+    .card.user { width: 77px; }
     .card img { display: block; background: #f2f2f2; object-fit: cover; }
-    .card.user img { width: 80px; height: 80px; border-radius: 50%; margin: 0 auto; }
+    .card.user img { width: 77px; height: 77px; }
     .card:not(.user) img { width: 144px; height: 108px; }
-    .card a { color: #575e75; font-weight: bold; text-decoration: none; }
-    .card .name { display: block; padding: 5px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
+    .card a { color: #855cd6; text-decoration: none; }
+    .card .name { display: block; padding: 6px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+                  font-size: 14px; font-weight: bold; }
+    .logo-fallback { color: #fff; font-weight: 900; font-size: 22px; letter-spacing: 1px; line-height: 40px; }
     .pager { display: flex; justify-content: center; align-items: center; gap: 16px; padding: 14px; }
     .pager button { background: #4d97ff; color: #fff; border: 0; border-radius: 4px; padding: 8px 16px; font-weight: bold; cursor: pointer; }
     .pager button:disabled { background: #c9d4e8; cursor: default; }
@@ -33,7 +37,7 @@
       <div class="innerwrap">
         <div class="container">
           <a href="https://scratch.mit.edu/" class="logo">
-            <img src="https://cdn.scratch.mit.edu/scratchr2/static/__0b77027edd8c5758537a8bc19a9ae817__/images/logo.png" alt="Scratch Logo" style="height: 30px; margin-top: 10px;">
+            <img id="site-logo" alt="Scratch" style="height: 30px; margin-top: 10px;">
           </a>
           <ul class="site-nav">
             <li><a href="https://scratch.mit.edu/projects/editor/">Create</a></li>
@@ -148,7 +152,7 @@
       // 'https://scratch-proxy.YOURNAME.workers.dev'
       const WORKER_URL = 'https://scratch-proxy.a225tunc.workers.dev';
 
-      const PREVIEW_LIMIT = 12;   // items shown on the profile page
+      const previewLimit = key => SECTIONS[key].kind === 'user' ? 10 : 6;  // items on the profile page
       const PAGE_SIZE = 40;       // items per page in "View all" (API max is 40)
 
       const DEFAULT_AVATAR = 'https://cdn2.scratch.mit.edu/get_image/user/default_60x60.png';
@@ -156,11 +160,11 @@
 
       // Sections shown on the profile, in order.
       const SECTIONS = {
-        projects:  { title: 'Shared Projects',  path: 'projects',       kind: 'project' },
-        favorites: { title: 'Favorites',        path: 'favorites',      kind: 'project' },
-        studios:   { title: 'Studios I Curate', path: 'studios/curate', kind: 'studio'  },
-        following: { title: 'Following',        path: 'following',      kind: 'user'    },
-        followers: { title: 'Followers',        path: 'followers',      kind: 'user'    },
+        projects:  { title: 'Shared Projects',  path: 'projects',       kind: 'project', empty: n => `${n} hasn't shared any projects` },
+        favorites: { title: 'Favorite Projects', path: 'favorites',     kind: 'project', empty: n => `${n} hasn't favorited any projects` },
+        studios:   { title: 'Curated Studios',  path: 'studios/curate', kind: 'studio',  empty: n => `${n} isn't curating any studios yet` },
+        following: { title: 'Following',        path: 'following',      kind: 'user',    empty: n => `${n} isn't following anyone yet` },
+        followers: { title: 'Followers',        path: 'followers',      kind: 'user',    empty: n => `${n} doesn't have any followers yet` },
       };
 
       // Fallback chain used only if the Worker/direct request fails.
@@ -282,7 +286,7 @@
         ul.innerHTML = '';
         if (!items.length) {
           const li = document.createElement('li');
-          li.className = 'msg';
+          li.className = emptyMsg && emptyMsg.startsWith('No more') ? 'msg' : 'empty';
           li.textContent = emptyMsg || 'Nothing here.';
           ul.appendChild(li);
           return;
@@ -310,8 +314,8 @@
           box.id = 'section-' + key;
           box.innerHTML = `
             <div class="box-head">
-              <h4>${esc(SECTIONS[key].title)} (<span class="count">…</span>)</h4>
-              <a href="#" data-view-all="${key}">View all</a>
+              <h4>${esc(SECTIONS[key].title)}</h4>
+              <a href="#" data-view-all="${key}" style="display: none;">View all</a>
             </div>
             <div class="box-content" style="min-height: 60px;">
               <ul class="grid"><li class="msg">Loading…</li></ul>
@@ -323,13 +327,12 @@
       async function loadSectionPreview(username, key, token) {
         const box = $('section-' + key);
         const ul = box.querySelector('.grid');
-        const countEl = box.querySelector('.count');
         try {
-          const { data } = await fetchScratchAPI(sectionEndpoint(username, key, PREVIEW_LIMIT, 0));
+          const { data } = await fetchScratchAPI(sectionEndpoint(username, key, previewLimit(key), 0));
           if (token !== loadToken) return null;
           const items = Array.isArray(data) ? data : [];
-          fillGrid(ul, SECTIONS[key].kind, items);
-          countEl.textContent = items.length >= PREVIEW_LIMIT ? PREVIEW_LIMIT + '+' : items.length;
+          fillGrid(ul, SECTIONS[key].kind, items, SECTIONS[key].empty(username));
+          box.querySelector('[data-view-all]').style.display = items.length ? '' : 'none';
           return items;
         } catch (err) {
           if (token !== loadToken) return null;
@@ -338,12 +341,13 @@
           li.className = 'msg';
           li.textContent = errorText(err);
           ul.appendChild(li);
-          countEl.textContent = '?';
           return null;
         }
       }
 
       function setFeatured(project) {
+        document.querySelector('.player').style.display = project ? '' : 'none';
+        if (!project) return;
         const img = $('featured-project-img');
         const title = $('featured-project-title');
         const link = $('featured-project-link');
@@ -394,7 +398,6 @@
           $('profile-status').textContent = profile.status || 'No status provided.';
 
           setFeatured(null);
-          $('featured-project-title').textContent = 'Loading...';
           buildSectionBoxes();
 
           const results = await Promise.all(
@@ -450,6 +453,26 @@
           $('pager-prev').disabled = page <= 1;
         }
       }
+
+      // ---------- Header logo (tries several URLs, falls back to text) ----------
+      (function() {
+        const img = $('site-logo');
+        const candidates = [
+          'https://cdn.scratch.mit.edu/scratchr2/static/__0b77027edd8c5758537a8bc19a9ae817__/images/logo_sm.png',
+          'https://cdn.scratch.mit.edu/scratchr2/static/__0b77027edd8c5758537a8bc19a9ae817__/images/logo.png',
+          'https://scratch.mit.edu/images/logo_sm.png',
+        ];
+        let i = 0;
+        function next() {
+          if (i < candidates.length) { img.src = candidates[i++]; return; }
+          const span = document.createElement('span');
+          span.className = 'logo-fallback';
+          span.textContent = 'SCRATCH';
+          img.replaceWith(span);
+        }
+        img.onerror = next;
+        next();
+      })();
 
       // ---------- Events ----------
       document.addEventListener('click', function(e) {
