@@ -214,6 +214,9 @@
       let full = { key: null, page: 1 };
       let foundProjects = [];   // projects recovered through curated studios
       let useFound = false;     // true once at least one was found
+      let featuredExtra = null; // the user's featured project, when it is theirs but missing from their project list
+      let apiProjectsPreview = null;  // first page of /projects (null = not loaded yet)
+      let projectsRawCount = null;    // project count as reported by the API list
 
       const $ = id => document.getElementById(id);
 
@@ -463,6 +466,10 @@
       let countChain = Promise.resolve();
 
       function setSectionCount(key, n) {
+        if (key === 'projects' && !useFound) {
+          projectsRawCount = n;
+          if (featuredExtra) n += 1;
+        }
         const el = document.querySelector('#section-' + key + ' .count');
         if (el) el.textContent = ' (' + n + ')';
       }
@@ -516,13 +523,16 @@
           const { data } = await fetchScratchAPI(sectionEndpoint(username, key, previewLimit(key), 0));
           if (token !== loadToken) return null;
           const items = Array.isArray(data) ? data : [];
-          fillGrid(ul, SECTIONS[key].kind, items, SECTIONS[key].empty(username));
-          box.querySelector('[data-view-all]').style.display = items.length ? '' : 'none';
+          if (key === 'projects') apiProjectsPreview = items;
+          const shown = key === 'projects' ? mergedProjects() : items;
+          fillGrid(ul, SECTIONS[key].kind, shown.slice(0, previewLimit(key)), SECTIONS[key].empty(username));
+          box.querySelector('[data-view-all]').style.display = shown.length ? '' : 'none';
           if (key === 'studios' && items.length) box.style.display = '';
           scheduleCount(username, key, items, token);
           return items;
         } catch (err) {
           if (token !== loadToken) return null;
+          if (key === 'projects') apiProjectsPreview = [];      // lets the featured project still show
           if (key === 'studios' && err.notFound) return null;   // stays hidden
           box.style.display = '';
           ul.innerHTML = '';
@@ -534,21 +544,95 @@
         }
       }
 
-      function setFeatured(project) {
+      function setFeatured(project, label) {
         document.querySelector('.player').style.display = project ? '' : 'none';
         if (!project) return;
+        document.querySelector('.featured-project-heading').textContent = label || 'Featured Project';
         const img = $('featured-project-img');
         const title = $('featured-project-title');
         const link = $('featured-project-link');
-        if (project) {
-          img.src = project.image || DEFAULT_PROJECT;
-          title.textContent = project.title;
-          title.href = link.href = `https://scratch.mit.edu/projects/${project.id}/`;
-        } else {
-          img.src = 'https://cdn2.scratch.mit.edu/get_image/project/1147906174_282x210.png';
-          title.textContent = 'No projects yet';
-          title.href = link.href = '#';
+        img.onerror = project.fallback ? function() { this.onerror = null; this.src = project.fallback; } : null;
+        img.src = project.image;
+        title.textContent = project.title;
+        title.href = link.href = `https://scratch.mit.edu/projects/${project.id}/`;
+      }
+
+      // ---------- Featured project (scratch.mit.edu/site-api via the Worker) ----------
+      async function fetchFeatured(username) {
+        if (!WORKER_URL) return null;
+        try {
+          const r = await fetchWithTimeout(WORKER_URL + '/__featured/' + encodeURIComponent(username));
+          if (!r.ok) return null;
+          const j = await r.json();
+          const fd = j && j.featured_project_data;
+          if (!fd || !fd.id) return null;
+          return { label: j.featured_project_label_name || '', data: fd };
+        } catch (e) { return null; }
+      }
+
+      // Is this project in the user's /projects list? (pages through at most 200 projects)
+      async function projectsContain(username, id) {
+        for (let page = 0; page < 5; page++) {
+          const { data } = await fetchScratchAPI(sectionEndpoint(username, 'projects', 40, page * 40));
+          const list = Array.isArray(data) ? data : [];
+          if (list.some(p => String(p.id) === String(id))) return true;
+          if (list.length < 40) return false;
         }
+        return true;   // too many to check: assume it is listed
+      }
+
+      // What the Shared Projects preview shows: API list (or studio-recovered list), plus the featured project if missing
+      function mergedProjects() {
+        const base = useFound ? foundProjects : (apiProjectsPreview || []);
+        if (featuredExtra && !useFound && !base.some(p => String(p.id) === String(featuredExtra.id))) {
+          return [featuredExtra].concat(base);
+        }
+        return base;
+      }
+
+      function refreshProjectsPreview() {
+        if (apiProjectsPreview === null && !useFound) return;   // preview not loaded yet; it will include the extra itself
+        const box = $('section-projects');
+        const shown = mergedProjects();
+        if (!shown.length) return;
+        fillGrid(box.querySelector('.grid'), 'project', shown.slice(0, previewLimit('projects')));
+        box.querySelector('[data-view-all]').style.display = '';
+        const raw = useFound ? foundProjects.length : projectsRawCount;
+        if (raw != null) setSectionCount('projects', raw);
+      }
+
+      async function loadFeatured(user, token) {
+        const res = await fetchFeatured(user.username);
+        if (token !== loadToken || !res) return;
+        const fd = res.data;
+        const id = fd.id;
+        const thumb = fd.thumbnail_url ? (fd.thumbnail_url.startsWith('//') ? 'https:' + fd.thumbnail_url : fd.thumbnail_url) : '';
+        setFeatured({
+          id, title: fd.title || 'Untitled',
+          image: `https://cdn2.scratch.mit.edu/get_image/project/${id}_282x210.png`,
+          fallback: thumb,
+        }, res.label);
+
+        // Also list it under Shared Projects if it is by this user and not already listed.
+        // Compare IDs when the data has them, otherwise usernames.
+        const creatorId = fd.creator_id != null ? fd.creator_id : fd.creator_pk;
+        const sameUser = creatorId != null
+          ? String(creatorId) === String(user.id)
+          : String(fd.creator || '').toLowerCase() === user.username.toLowerCase();
+        if (!sameUser) return;
+
+        let listed;
+        try { listed = await projectsContain(user.username, id); }
+        catch (e) { listed = !(e && e.notFound); }   // no list at all -> add it; other errors -> leave it out
+        if (token !== loadToken || listed) return;
+
+        featuredExtra = {
+          id, title: fd.title || 'Untitled',
+          image: `https://cdn2.scratch.mit.edu/get_image/project/${id}_144x108.png`,
+          author: { username: fd.creator || user.username },
+        };
+        if (useFound && !foundProjects.some(p => String(p.id) === String(id))) foundProjects.unshift(featuredExtra);
+        refreshProjectsPreview();
       }
 
       async function loadProfile(username, urlMode = 'push') {
@@ -557,6 +641,9 @@
         const token = ++loadToken;
         foundProjects = [];
         useFound = false;
+        featuredExtra = null;
+        apiProjectsPreview = null;
+        projectsRawCount = null;
         hideFull();
 
         const alertBox = $('alert-view');
@@ -592,12 +679,12 @@
           updateAccountInfo(user, token);   // background: deleted / exists check
           setFeatured(null);
           buildSectionBoxes();
+          loadFeatured(user, token);   // background: real featured project + label
 
           const results = await Promise.all(
             Object.keys(SECTIONS).map(k => loadSectionPreview(user.username, k, token)));
           if (token !== loadToken) return;
           const projects = results[0];
-          setFeatured(projects && projects.length ? projects[0] : null);
 
           const studioItems = results[Object.keys(SECTIONS).indexOf('studios')];
           if ((!projects || !projects.length) && studioItems && studioItems.length) {
@@ -648,6 +735,7 @@
 
         const render = () => {
           foundProjects = [...found.values()];
+          if (featuredExtra && !found.has(featuredExtra.id)) foundProjects.unshift(featuredExtra);
           useFound = foundProjects.length > 0;
           if (!useFound) return;
           fillGrid(ul, 'project', foundProjects.slice(0, previewLimit('projects')));
@@ -673,9 +761,7 @@
               }
             }
             if (added && token === loadToken) {
-              const first = !useFound;
               render();
-              if (first) setFeatured(foundProjects[0]);
             }
             if (data.length < 40) break;
           }
@@ -703,7 +789,8 @@
       function getCount(key) {
         if (key === 'projects' && useFound) return foundProjects.length;
         const c = countCache.get(countKey(currentUser, key));
-        return c == null ? null : c;
+        if (c == null) return null;
+        return (key === 'projects' && featuredExtra) ? c + 1 : c;
       }
 
       async function fetchRange(username, key, start, count) {
@@ -804,15 +891,17 @@
         }
         if (stale()) return;
 
+        const apiLen = items.length;
+        if (key === 'projects' && !useFound && page === 1 && featuredExtra) items = [featuredExtra].concat(items);
         fillFull(ul, sec.kind, items, page > 1 ? 'No more results.' : sec.empty(myUser));
 
         // A short page reveals the exact total for free
-        if (!(key === 'projects' && useFound) && items.length < size && items.length > 0) {
-          countCache.set(countKey(myUser, key), (page - 1) * size + items.length);
-        } else if (!(key === 'projects' && useFound) && page === 1 && items.length === 0) {
+        if (!(key === 'projects' && useFound) && apiLen < size && apiLen > 0) {
+          countCache.set(countKey(myUser, key), (page - 1) * size + apiLen);
+        } else if (!(key === 'projects' && useFound) && page === 1 && apiLen === 0) {
           countCache.set(countKey(myUser, key), 0);
         }
-        refreshHead(items.length >= size);
+        refreshHead(apiLen >= size);
 
         // Otherwise find the total in the background and update the title / page numbers
         if (getCount(key) == null) {
