@@ -4,18 +4,29 @@
   <meta charset="UTF-8">
   <title>Redirecting…</title>
   <script>
-    // Served for any missing path, e.g. /screleted/kaj (GitHub Pages) or /kaj (screleted.pages.dev).
-    // Redirects to <site root>/?user=kaj; index.html shows that profile and restores the pretty URL.
+    // Served for any missing path, e.g. /screleted/kaj/favorites (GitHub Pages)
+    // or /kaj/favorites (screleted.pages.dev).
+    // Redirects to <site root>/?user=kaj&section=favorites; index.html shows that
+    // profile/section and restores the pretty URL.
     //
     // GitHub project sites live under /REPO/, so keep 1 path segment there;
     // everywhere else (Cloudflare Pages, custom domains) the site is at the root.
     var l = window.location;
     var segmentsToKeep = /\.github\.io$/.test(l.hostname) ? 1 : 0;
 
-    var parts = l.pathname.split('/');
-    var base = parts.slice(0, 1 + segmentsToKeep).join('/') + '/';
-    var name = parts.slice(1 + segmentsToKeep)[0] || '';
-    l.replace(l.protocol + '//' + l.host + base + (name ? '?user=' + name : '') + l.hash);
+    var parts = l.pathname.split('/').filter(Boolean);
+    var rest = parts.slice(segmentsToKeep);
+    var name = rest[0] || '';
+    var section = rest[1] || '';
+
+    var base = '/' + parts.slice(0, segmentsToKeep).join('/');
+    if (base !== '/') base += '/';
+
+    var qs = [];
+    if (name) qs.push('user=' + name);
+    if (section) qs.push('section=' + section);
+
+    l.replace(l.protocol + '//' + l.host + base + (qs.length ? '?' + qs.join('&') : '') + l.hash);
   </script>
 </head>
 <body>Redirecting…</body>
