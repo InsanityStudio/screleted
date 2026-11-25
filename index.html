@@ -343,15 +343,35 @@
       async function updateAccountInfo(user, token) {
         const box = $('account-info');
         const joined = user.history && user.history.joined;
-        const joinedLine = `<div>Joined: <strong>${esc(joined ? formatTimestamp(joined) : 'Unknown')}</strong></div>`;
-        box.innerHTML = `<div>Account: <span class="unk">Checking…</span></div>` + joinedLine;
-        const exists = await checkAccountExists(user.username);
-        if (token !== loadToken) return;
-        let status;
-        if (exists === true)       status = `<a class="ok" href="https://scratch.mit.edu/users/${encodeURIComponent(user.username)}/" target="_blank" rel="noopener">Exists</a>`;
-        else if (exists === false) status = '<span class="del">Deleted</span>';
-        else                       status = '<span class="unk">Unknown</span>';
-        box.innerHTML = `<div>Account: ${status}</div>` + joinedLine;
+        box.innerHTML =
+          '<div>Account: <span id="acct-status" class="unk">Checking…</span></div>' +
+          `<div>Joined: <strong>${esc(joined ? formatTimestamp(joined) : 'Unknown')}</strong></div>` +
+          '<div>Messages: <strong id="acct-messages">Checking…</strong></div>';
+
+        // Account status (does the website profile still exist?)
+        checkAccountExists(user.username).then(exists => {
+          if (token !== loadToken) return;
+          const el = $('acct-status');
+          if (exists === true) {
+            el.outerHTML = `<a class="ok" href="https://scratch.mit.edu/users/${encodeURIComponent(user.username)}/" target="_blank" rel="noopener">Exists</a>`;
+          } else if (exists === false) {
+            el.outerHTML = '<span class="del">Deleted</span>';
+          } else {
+            el.outerHTML = '<span class="unk">Unknown</span>';
+          }
+        });
+
+        // Unread message count (public endpoint)
+        fetchScratchAPI('/users/' + encodeURIComponent(user.username) + '/messages/count')
+          .then(({ data }) => {
+            if (token !== loadToken) return;
+            const n = data && typeof data.count === 'number' ? data.count : null;
+            $('acct-messages').textContent = n == null ? 'Unknown' : String(n);
+          })
+          .catch(() => {
+            if (token !== loadToken) return;
+            $('acct-messages').textContent = 'Unknown';
+          });
       }
 
       // ---------- Card rendering ----------
