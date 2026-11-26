@@ -62,6 +62,20 @@
     .error-message { color: #d9534f; padding: 10px; font-weight: bold; }
     #topnav .logo { background: none; float: left; width: auto; height: 35px; margin: 0 20px 0 0 !important; padding: 0; display: flex; align-items: center; overflow: hidden; }
     #topnav .logo img { height: 24px; width: auto; margin: 0 !important; display: block; }
+
+    /* Header layout: logo + nav on the left, account links on the right,
+       and the search box centred in the bar. */
+    #topnav .container { position: relative; display: flex; align-items: center; }
+    #topnav .site-nav { display: flex; align-items: center; margin: 0 !important; float: none !important; }
+    #topnav .site-nav li { float: none !important; margin: 0 !important; }
+    #topnav .site-nav li a { padding: 0 12px !important; }
+    #topnav .search {
+      position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+      float: none !important; margin: 0 !important;
+    }
+    #topnav .account-nav { display: flex; align-items: center; margin: 0 0 0 auto !important; float: none !important; }
+    #topnav .account-nav li { float: none !important; margin-left: 12px !important; }
+
     #profile-bio, #profile-status { white-space: pre-wrap; word-wrap: break-word; }
 
     /* @mentions in profile text and studio descriptions link to Screleted profiles. */
@@ -276,7 +290,7 @@
             <li><a href="https://scratch.mit.edu/discuss/">Discuss</a></li>
             <li class="last"><a href="https://scratch.mit.edu/help/">Help</a></li>
           </ul>
-          <form class="search" id="profile-search-form" style="position: relative;">
+          <form class="search" id="profile-search-form">
             <input type="submit" class="glass" value="" style="cursor: pointer;">
             <input id="search-input" type="text" placeholder="Search username" name="q" value="kaj">
           </form>
