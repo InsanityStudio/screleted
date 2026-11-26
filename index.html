@@ -60,8 +60,15 @@
     #content a.pname:hover { text-decoration: underline; }
     #profile-data .loading-img { display: none; }
     .error-message { color: #d9534f; padding: 10px; font-weight: bold; }
-    #topnav .logo { background: none; float: left; width: auto; height: 35px; margin: 0 20px 0 0 !important; padding: 0; display: flex; align-items: center; overflow: hidden; }
+    #topnav .logo { background: none; float: left; width: auto; height: 35px; margin: 0 8px 0 0 !important; padding: 0; display: flex; align-items: center; overflow: hidden; }
     #topnav .logo img { height: 24px; width: auto; margin: 0 !important; display: block; }
+
+    /* Tighter header: smaller gaps between nav / search / account items */
+    #topnav .site-nav li a { padding-left: 8px; padding-right: 8px; }
+    #topnav .account-nav li a,
+    #topnav .account-nav .dropdown-toggle { padding-left: 8px; padding-right: 8px; }
+    #topnav .search { margin-left: 8px; margin-right: 8px; }
+    
     #profile-bio, #profile-status { white-space: pre-wrap; word-wrap: break-word; }
 
     /* @mentions in profile text and studio descriptions link to Screleted profiles. */
