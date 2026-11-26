@@ -5,6 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>screleted</title>
   <meta name="theme-color" content="#0F8BC0">
+  <script>
+    // Re-apply the cached header recolour before first paint (the rules are built by recolorHeader() below).
+    (function () {
+      var st = document.createElement('style'); st.id = 'hdr-recolor';
+      try { st.textContent = localStorage.getItem('hdr-recolor-v1') || ''; } catch (e) {}
+      document.head.appendChild(st);
+    })();
+  </script>
   <meta name="description" content="Screleted: a fast Scratch profile and studio viewer.">
   <link rel="preconnect" href="https://scratch-proxy.a225tunc.workers.dev" crossorigin>
   <link rel="preconnect" href="https://cdn.scratch.mit.edu">
@@ -40,15 +48,9 @@
   <link rel="stylesheet" href="https://cdn.scratch.mit.edu/scratchr2/static/__9df8705ead146d0ff4b9ef4e86644347__/css/pages/profile.css">
   <style>
     /* Header bar colour */
-    html body #pagewrapper #topnav,
-    html body #pagewrapper #topnav .innerwrap,
-    html body #pagewrapper #topnav .container,
-    html body #pagewrapper #topnav .site-nav,
-    html body #pagewrapper #topnav .account-nav,
-    html body #pagewrapper #topnav .site-nav > li,
-    html body #pagewrapper #topnav .account-nav > li { background: #0F8BC0 !important; }
-    html body #pagewrapper #topnav .site-nav > li:hover,
-    html body #pagewrapper #topnav .account-nav > li:hover { background: #0c7099 !important; }
+    /* Header colour: the recolour script in <head>/below swaps only Scratch's own purple values.
+       This base rule just covers the bar background if that script can't run. */
+    html body #pagewrapper #topnav { background-color: #0F8BC0 !important; }
     /* All content links share the @mention blue (header, tabs, status and buttons keep their own colours) */
     #content a:not(.ok):not(.button):not(.studio-tab):not(.pname):not(.studio-project-username),
     #content a:not(.ok):not(.button):not(.studio-tab):not(.pname):not(.studio-project-username):link,
@@ -105,15 +107,6 @@
     .card .by a { font-weight: normal; }
     .card .by { display: block; font-size: 12px; color: #575e75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-    /* projects with author avatar (favorites), like studio tiles */
-    .card.with-author .pbottom, .item.with-author .pbottom { display: flex; align-items: center; gap: 8px; width: 144px; margin-top: 8px; }
-    .with-author .pavatar { display: block; flex: 0 0 34px; line-height: 0; }
-    .card.project.with-author .pavatar img, .with-author .pavatar img { display: block; width: 34px; height: 34px; box-sizing: border-box; object-fit: cover; border: 1px solid #ddd; background: #f2f2f2; }
-    .with-author .pinfo { min-width: 0; line-height: 17px; }
-    .card.project.with-author .pinfo .name { width: auto; max-width: 100%; padding: 0 0 3px; font-size: 13px; font-weight: 500; }
-    .with-author .pname, .item.with-author .pinfo .title, .item.with-author .pinfo .owner { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
-    .item.with-author .pinfo .title { padding: 0 0 3px; font-size: 13px; }
-    .item.with-author { height: auto !important; }
     /* projects: 144x108 */
     .card.project img { width: 144px; height: 108px; }
 
@@ -736,19 +729,21 @@
 
       // ---------- Card rendering ----------
       // Author name + profile picture for a project (id-based picture URL as a fallback)
-      function projectAuthor(item, ownerFallback) {
+      // Username of a project's maker. Favorites lists often leave it out, so it is looked up afterwards.
+      function makerName(item, ownerFallback) {
         const a = item.author || {};
-        if (!a.username && ownerFallback && currentUser) {
-          return { name: currentUser, avatar: $('profile-avatar-img').src || DEFAULT_AVATAR };
-        }
-        const imgs = (a.profile && a.profile.images) || {};
-        return {
-          name: a.username || '',
-          avatar: imgs['90x90'] || imgs['60x60'] ||
-            (a.id ? `https://uploads.scratch.mit.edu/get_image/user/${encodeURIComponent(a.id)}_90x90.png` : DEFAULT_AVATAR),
-        };
+        return a.username || (ownerFallback && currentUser) || '';
       }
-      const AVATAR_FALLBACK = `onerror="this.onerror=null;this.src='${DEFAULT_AVATAR}'"`;
+      function fillMaker(link, item) {
+        if (!link) return;
+        fetchScratchAPI('/projects/' + encodeURIComponent(item.id)).then(({ data }) => {
+          const n = data && data.author && data.author.username;
+          if (!n) return;
+          link.textContent = n;
+          link.dataset.user = n;
+          link.href = profileUrl(n);
+        }).catch(() => {});
+      }
 
       function createCard(kind, item, showAuthor) {
         const li = document.createElement('li');
@@ -769,26 +764,13 @@
             <a class="name" href="${url}" data-studio-id="${esc(item.id)}" title="${esc(item.title)}">${esc(item.title)}</a>`;
         } else {
           const url = `https://scratch.mit.edu/projects/${item.id}/`;
-          const author = item.author && item.author.username;
-          const au = showAuthor ? projectAuthor(item, showAuthor === 'owner') : null;
-          if (au && au.name) {
-            li.className = 'card project with-author';
-            li.innerHTML = `
-              <a href="${url}" target="_blank" rel="noopener"><img src="${esc(item.image || DEFAULT_PROJECT)}" alt="" loading="lazy" decoding="async"></a>
-              <div class="pbottom">
-                <a class="pavatar" href="#" data-user="${esc(au.name)}"><img src="${esc(au.avatar)}" alt="" loading="lazy" decoding="async" ${AVATAR_FALLBACK}></a>
-                <div class="pinfo">
-                  <a class="name" href="${url}" target="_blank" rel="noopener" title="${esc(item.title)}">${esc(item.title)}</a>
-                  <a class="pname" href="#" data-user="${esc(au.name)}">${esc(au.name)}</a>
-                </div>
-              </div>`;
-            return li;
-          }
+          const name = showAuthor ? makerName(item, showAuthor === 'owner') : (item.author && item.author.username) || '';
           li.className = 'card project';
           li.innerHTML = `
             <a href="${url}" target="_blank" rel="noopener"><img src="${esc(item.image || DEFAULT_PROJECT)}" alt="" loading="lazy" decoding="async"></a>
             <a class="name" href="${url}" target="_blank" rel="noopener" title="${esc(item.title)}">${esc(item.title)}</a>
-            ${author ? `<span class="by">by <a href="#" data-user="${esc(author)}">${esc(author)}</a></span>` : ''}`;
+            ${name || showAuthor === 'author' ? `<span class="by"><a class="pname" href="${name ? profileUrl(name) : '#'}" data-user="${esc(name)}">${esc(name || '…')}</a></span>` : ''}`;
+          if (showAuthor === 'author' && !name) fillMaker(li.querySelector('.pname'), item);
         }
         return li;
       }
@@ -823,30 +805,15 @@
         } else {
           const url = `https://scratch.mit.edu/projects/${item.id}/`;
           const src = `https://cdn2.scratch.mit.edu/get_image/project/${item.id}_144x108.png`;
-          const author = item.author && item.author.username;
-          const au = showAuthor ? projectAuthor(item, showAuthor === 'owner') : null;
-          if (au && au.name) {
-            li.className = 'project thumb item with-author';
-            li.innerHTML = `
-              <a href="${url}" target="_blank" rel="noopener">
-                <img loading="lazy" decoding="async" class="lazy image" width="144" height="108" src="${src}" style="display: block;" onerror="this.onerror=null;this.src='${esc(item.image || DEFAULT_PROJECT)}'">
-              </a>
-              <div class="pbottom">
-                <a class="pavatar" href="${profileUrl(au.name)}" data-user="${esc(au.name)}"><img src="${esc(au.avatar)}" alt="" width="34" height="34" loading="lazy" decoding="async" ${AVATAR_FALLBACK}></a>
-                <div class="pinfo">
-                  <span class="title"><a href="${url}" target="_blank" rel="noopener">${esc(item.title)}</a></span>
-                  <span class="owner"><a class="pname" href="${profileUrl(au.name)}" data-user="${esc(au.name)}">${esc(au.name)}</a></span>
-                </div>
-              </div>`;
-            return li;
-          }
+          const name = showAuthor ? makerName(item, showAuthor === 'owner') : (item.author && item.author.username) || '';
           li.className = 'project thumb item';
           li.innerHTML = `
             <a href="${url}" target="_blank" rel="noopener">
               <img loading="lazy" decoding="async" class="lazy image" width="144" height="108" src="${src}" style="display: block;" onerror="this.onerror=null;this.src='${esc(item.image || DEFAULT_PROJECT)}'">
             </a>
             <span class="title"><a href="${url}" target="_blank" rel="noopener">${esc(item.title)}</a></span>
-            <span class="owner">${author ? `by <a href="${profileUrl(author)}" data-user="${esc(author)}">${esc(author)}</a>` : ''}</span>`;
+            <span class="owner">${name || showAuthor === 'author' ? `<a class="pname" href="${name ? profileUrl(name) : '#'}" data-user="${esc(name)}">${esc(name || '…')}</a>` : ''}</span>`;
+          if (showAuthor === 'author' && !name) fillMaker(li.querySelector('.pname'), item);
         }
         return li;
       }
@@ -1982,6 +1949,73 @@
         requestAnimationFrame(() => { fitQueued = false; fitLogo(); });
       });
       $('site-logo') && $('site-logo').addEventListener('load', fitLogo);
+
+      // ---------- Header colour (purple -> #0F8BC0) ----------
+      // Rewrites only the colour values of Scratch's own #topnav rules, so the shapes, dividers
+      // and hover states stay exactly as Scratch draws them. The result is cached (see <head>).
+      const HEADER_BLUE = [15, 139, 192];
+      function recolorPurple(text) {
+        const toHsl = (r, g, b) => {
+          r /= 255; g /= 255; b /= 255;
+          const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+          if (!d) return [0, 0, l];
+          const s = d / (1 - Math.abs(2 * l - 1));
+          const h = mx === r ? ((g - b) / d + 6) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+          return [h * 60, s, l];
+        };
+        const toRgb = (h, s, l) => {
+          const c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = l - c / 2;
+          const [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+          return [r + m, g + m, b + m].map(v => Math.round(Math.min(1, Math.max(0, v)) * 255));
+        };
+        const swap = (r, g, b) => {
+          if (Math.abs(r - 133) + Math.abs(g - 92) + Math.abs(b - 214) <= 12) return HEADER_BLUE;   // Scratch purple
+          const [h, s, l] = toHsl(r, g, b);
+          if (h < 235 || h > 295 || s < 0.2) return null;                                           // not purple
+          return toRgb(198, Math.min(1, s * 1.44), Math.min(1, Math.max(0, l - 0.2)));
+        };
+        return text
+          .replace(/#([0-9a-f]{6}|[0-9a-f]{3})\b/gi, (all, hx) => {
+            if (hx.length === 3) hx = hx.replace(/./g, '$&$&');
+            const n = swap(parseInt(hx.slice(0, 2), 16), parseInt(hx.slice(2, 4), 16), parseInt(hx.slice(4, 6), 16));
+            return n ? '#' + n.map(v => v.toString(16).padStart(2, '0')).join('') : all;
+          })
+          .replace(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(,\s*[\d.]+\s*)?\)/gi, (all, r, g, b, a) => {
+            const n = swap(+r, +g, +b);
+            return n ? (a ? `rgba(${n.join(',')}${a})` : `rgb(${n.join(',')})`) : all;
+          });
+      }
+
+      async function recolorHeader() {
+        const st = document.getElementById('hdr-recolor');
+        if (!st || st.textContent.trim()) return;            // already applied from the cache
+        try {
+          const links = [...document.querySelectorAll('link[rel="stylesheet"][href*="scratchr2/static"]')];
+          const sheets = await Promise.all(links.map(l => fetch(l.href).then(r => r.ok ? r.text() : '')));
+          let out = '';
+          sheets.forEach(css => {
+            css = css.replace(/\/\*[\s\S]*?\*\//g, '');
+            const re = /([^{}@]+)\{([^{}]*)\}/g;
+            let m;
+            while ((m = re.exec(css))) {
+              const sel = m[1].split(',').map(x => x.trim()).filter(x => /topnav/.test(x));
+              if (!sel.length) continue;
+              const decls = [];
+              m[2].split(';').forEach(d => {
+                d = d.trim();
+                if (!/^(background|border|box-shadow|outline)/i.test(d)) return;   // colours only
+                const nd = recolorPurple(d);
+                if (nd !== d) decls.push(nd.replace(/\s*!important\s*$/i, '') + ' !important');
+              });
+              if (decls.length) out += sel.join(',') + '{' + decls.join(';') + '}\n';
+            }
+          });
+          if (!out) return;
+          st.textContent = out;
+          try { localStorage.setItem('hdr-recolor-v1', out); } catch (e) { /* storage unavailable */ }
+        } catch (e) { /* stylesheet not readable: the base rule below still applies */ }
+      }
+      window.addEventListener('load', recolorHeader);
 
       // ---------- Events ----------
       document.addEventListener('click', function(e) {
