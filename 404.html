@@ -6,8 +6,8 @@
   <meta name="robots" content="noindex">
   <title>Redirecting…</title>
   <script>
-    // /users/NAME[/section] and /studios/ID have no real files on static hosting, so the
-    // host serves this page; turn the path into a query string for index.html.
+    // /users/NAME[/section][?page=N] and /studios/ID have no real files on static hosting,
+    // so the host serves this page; turn the path into a query string for index.html.
     // The GitHub project site lives under /screleted/; the other hosts are at the root.
     (function () {
       var l = location;
@@ -22,6 +22,9 @@
       } else if (route[0] === 'users' && route[1]) {
         q.push('user=' + encodeURIComponent(dec(route[1])));
         if (route[2]) q.push('section=' + encodeURIComponent(dec(route[2])));
+        // Keep the page number: /users/NAME/section?page=2 must open on that page.
+        var pg = parseInt(new URLSearchParams(l.search).get('page'), 10);
+        if (route[2] && Number.isFinite(pg) && pg > 1) q.push('page=' + pg);
       }
       l.replace(base + (q.length ? '?' + q.join('&') : '') + l.hash);
     })();
