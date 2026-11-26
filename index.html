@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>screleted</title>
+  <meta name="theme-color" content="#0F8BC0">
   <meta name="description" content="Screleted: a fast Scratch profile and studio viewer.">
   <link rel="preconnect" href="https://scratch-proxy.a225tunc.workers.dev" crossorigin>
   <link rel="preconnect" href="https://cdn.scratch.mit.edu">
@@ -39,13 +40,22 @@
   <link rel="stylesheet" href="https://cdn.scratch.mit.edu/scratchr2/static/__9df8705ead146d0ff4b9ef4e86644347__/css/pages/profile.css">
   <style>
     /* Header bar colour */
-    #topnav { background: #0F8BC0 !important; }
-    #topnav .site-nav li a:hover, #topnav .account-nav li a:hover { background-color: rgba(0,0,0,.15) !important; }
+    html body #pagewrapper #topnav,
+    html body #pagewrapper #topnav .innerwrap,
+    html body #pagewrapper #topnav .container,
+    html body #pagewrapper #topnav .site-nav,
+    html body #pagewrapper #topnav .account-nav,
+    html body #pagewrapper #topnav .site-nav > li,
+    html body #pagewrapper #topnav .account-nav > li { background: #0F8BC0 !important; }
+    html body #pagewrapper #topnav .site-nav > li:hover,
+    html body #pagewrapper #topnav .account-nav > li:hover { background: #0c7099 !important; }
     /* All content links share the @mention blue (header, tabs, status and buttons keep their own colours) */
-    #content a:not(.ok):not(.button):not(.studio-tab),
-    #content a:not(.ok):not(.button):not(.studio-tab):link,
-    #content a:not(.ok):not(.button):not(.studio-tab):visited,
-    #content a:not(.ok):not(.button):not(.studio-tab):hover { color: #4c97ff; }
+    #content a:not(.ok):not(.button):not(.studio-tab):not(.pname):not(.studio-project-username),
+    #content a:not(.ok):not(.button):not(.studio-tab):not(.pname):not(.studio-project-username):link,
+    #content a:not(.ok):not(.button):not(.studio-tab):not(.pname):not(.studio-project-username):visited,
+    #content a:not(.ok):not(.button):not(.studio-tab):not(.pname):not(.studio-project-username):hover { color: #4c97ff; }
+    #content a.pname, #content a.pname:link, #content a.pname:visited, #content a.pname:hover { color: #575e75; text-decoration: none; }
+    #content a.pname:hover { text-decoration: underline; }
     #profile-data .loading-img { display: none; }
     .error-message { color: #d9534f; padding: 10px; font-weight: bold; }
     #topnav .logo { background: none; float: left; width: auto; height: 35px; margin: 0 20px 0 0 !important; padding: 0; display: flex; align-items: center; overflow: hidden; }
@@ -218,7 +228,7 @@
       display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-decoration: none;
     }
     #studio-view .studio-project-title { margin-bottom: 3px; color: #4c97ff; font-size: 13px; font-weight: 500; }
-    #studio-view .studio-project-username { color: #4c97ff; font-size: 12px; font-weight: normal; }
+    #studio-view .studio-project-username { color: #322f31; font-size: 12px; font-weight: normal; }
     #studio-view .studio-project-username:hover, #studio-view .studio-project-title:hover { text-decoration: underline; }
     #studio-view .studio-projects-message { grid-column: 1 / -1; padding: 16px 0; color: #888; font-size: 13px; font-style: italic; }
     #studio-view .studio-grid-load-more { padding: 26px 0 0; text-align: center; }
@@ -320,8 +330,8 @@
           <section class="studio-tabs">
             <div class="studio-tab-nav">
               <a class="studio-tab active" data-studio-tab="projects" href="#"><span class="studio-tab-icon"></span>Projects&nbsp;<span class="tab-count">(<span id="studio-project-count">—</span>)</span></a>
-              <a class="studio-tab" data-studio-tab="curators" href="#"><span class="studio-tab-icon curators"></span>Curators</a>
               <a class="studio-tab" data-tab="comments" href="https://scratch.mit.edu/studios/" target="_blank" rel="noopener"><span class="studio-tab-icon comments"></span>Comments</a>
+              <a class="studio-tab" data-studio-tab="curators" href="#"><span class="studio-tab-icon curators"></span>Curators</a>
               <a class="studio-tab" data-tab="activity" href="https://scratch.mit.edu/studios/" target="_blank" rel="noopener"><span class="studio-tab-icon activity"></span>Activity</a>
             </div>
             <div class="studio-projects" id="studio-projects-panel">
@@ -726,8 +736,11 @@
 
       // ---------- Card rendering ----------
       // Author name + profile picture for a project (id-based picture URL as a fallback)
-      function projectAuthor(item) {
+      function projectAuthor(item, ownerFallback) {
         const a = item.author || {};
+        if (!a.username && ownerFallback && currentUser) {
+          return { name: currentUser, avatar: $('profile-avatar-img').src || DEFAULT_AVATAR };
+        }
         const imgs = (a.profile && a.profile.images) || {};
         return {
           name: a.username || '',
@@ -757,8 +770,8 @@
         } else {
           const url = `https://scratch.mit.edu/projects/${item.id}/`;
           const author = item.author && item.author.username;
-          if (showAuthor && author) {
-            const au = projectAuthor(item);
+          const au = showAuthor ? projectAuthor(item, showAuthor === 'owner') : null;
+          if (au && au.name) {
             li.className = 'card project with-author';
             li.innerHTML = `
               <a href="${url}" target="_blank" rel="noopener"><img src="${esc(item.image || DEFAULT_PROJECT)}" alt="" loading="lazy" decoding="async"></a>
@@ -811,8 +824,8 @@
           const url = `https://scratch.mit.edu/projects/${item.id}/`;
           const src = `https://cdn2.scratch.mit.edu/get_image/project/${item.id}_144x108.png`;
           const author = item.author && item.author.username;
-          if (showAuthor && author) {
-            const au = projectAuthor(item);
+          const au = showAuthor ? projectAuthor(item, showAuthor === 'owner') : null;
+          if (au && au.name) {
             li.className = 'project thumb item with-author';
             li.innerHTML = `
               <a href="${url}" target="_blank" rel="noopener">
@@ -822,7 +835,7 @@
                 <a class="pavatar" href="${profileUrl(au.name)}" data-user="${esc(au.name)}"><img src="${esc(au.avatar)}" alt="" width="34" height="34" loading="lazy" decoding="async" ${AVATAR_FALLBACK}></a>
                 <div class="pinfo">
                   <span class="title"><a href="${url}" target="_blank" rel="noopener">${esc(item.title)}</a></span>
-                  <span class="owner"><a href="${profileUrl(au.name)}" data-user="${esc(au.name)}">${esc(au.name)}</a></span>
+                  <span class="owner"><a class="pname" href="${profileUrl(au.name)}" data-user="${esc(au.name)}">${esc(au.name)}</a></span>
                 </div>
               </div>`;
             return li;
@@ -987,7 +1000,7 @@
           const items = Array.isArray(data) ? data : [];
           if (key === 'projects') apiProjectsPreview = items;
           const shown = key === 'projects' ? mergedProjects() : items;
-          fillGrid(ul, SECTIONS[key].kind, shown.slice(0, previewLimit(key)), SECTIONS[key].empty(username), key === 'favorites');
+          fillGrid(ul, SECTIONS[key].kind, shown.slice(0, previewLimit(key)), SECTIONS[key].empty(username), key === 'favorites' ? 'author' : key === 'projects' ? 'owner' : false);
           box.querySelector('[data-view-all]').style.display = shown.length ? '' : 'none';
           if (key === 'studios' && items.length) box.style.display = '';
           scheduleCount(username, key, items, token);
@@ -1118,7 +1131,7 @@
         if (!box) return;
         const shown = mergedProjects();
         if (shown.length) {
-          fillGrid(box.querySelector('.grid'), 'project', shown.slice(0, previewLimit('projects')));
+          fillGrid(box.querySelector('.grid'), 'project', shown.slice(0, previewLimit('projects')), undefined, 'owner');
           box.querySelector('[data-view-all]').style.display = '';
           const el = box.querySelector('.count');
           const total = projectsTotalCount();
@@ -1468,15 +1481,11 @@
         }
       }
 
-      // ---------- Studio status (does the website page still exist?) ----------
-      async function checkStudioExists(id) {
-        if (!WORKER_URL) return null;
-        try {
-          const r = await fetchWithTimeout(WORKER_URL + '/__studio-exists/' + encodeURIComponent(id));
-          if (!r.ok) return null;
-          const j = await r.json();
-          return typeof j.exists === 'boolean' ? j.exists : null;
-        } catch (e) { return null; }
+      // ---------- Studio status (from the studio's own API data) ----------
+      function setStudioStatus(id, exists) {
+        $('studio-status').innerHTML = 'Studio: ' + (exists === true
+          ? `<a class="ok" href="https://scratch.mit.edu/studios/${encodeURIComponent(id)}/" target="_blank" rel="noopener">Exists</a>`
+          : exists === false ? '<span class="del">Deleted</span>' : '<span class="unk">Unknown</span>');
       }
 
       // ---------- Studio curators / managers tab ----------
@@ -1615,18 +1624,15 @@
         $('studio-load-more-wrap').style.display = 'none';
         showStudioTab(tab);
         $('studio-status').innerHTML = 'Studio: <span class="unk">Checking…</span>';
-        checkStudioExists(id).then(exists => {
-          if (token !== loadToken) return;
-          $('studio-status').innerHTML = 'Studio: ' + (exists === true
-            ? `<a class="ok" href="https://scratch.mit.edu/studios/${encodeURIComponent(id)}/" target="_blank" rel="noopener">Exists</a>`
-            : exists === false ? '<span class="del">Deleted</span>' : '<span class="unk">Unknown</span>');
-        });
         window.scrollTo(0, 0);
 
         try {
           const { data: studio } = await fetchScratchAPI('/studios/' + encodeURIComponent(id));
           if (token !== loadToken) return;
           if (!studio || typeof studio !== 'object' || !studio.id) throw notFoundError();
+          // 404 = gone. Otherwise trust the studio's own visibility flag (only known removal codes count as deleted).
+          const vis = String(studio.visibility || 'visible');
+          setStudioStatus(id, vis === 'visible' ? true : ['notvisible', 'delbyusr', 'trshbyusr', 'delbyclo'].includes(vis) ? false : null);
 
           const title = studio.title || ('Studio ' + id);
           $('studio-title').textContent = title;
@@ -1654,6 +1660,7 @@
           await loadMoreStudioProjects(token);
         } catch (err) {
           if (token !== loadToken) return;
+          setStudioStatus(id, err.notFound ? false : null);
           $('studio-alert').textContent = err.notFound
             ? `Studio ${id} could not be found.`
             : `Could not load this studio: ${err.message}`;
@@ -1911,7 +1918,7 @@
         if (stale()) return;
 
         const apiLen = items.length;
-        fillFull(ul, sec.kind, items, page > 1 ? 'No more results.' : sec.empty(myUser), key === 'favorites');
+        fillFull(ul, sec.kind, items, page > 1 ? 'No more results.' : sec.empty(myUser), key === 'favorites' ? 'author' : key === 'projects' ? 'owner' : false);
 
         if (key === 'projects') {
           refreshHead(page * size < totalOverride, totalOverride);
