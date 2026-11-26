@@ -60,15 +60,8 @@
     #content a.pname:hover { text-decoration: underline; }
     #profile-data .loading-img { display: none; }
     .error-message { color: #d9534f; padding: 10px; font-weight: bold; }
-    #topnav .logo { background: none; float: left; width: auto; height: 35px; margin: 0 8px 0 0 !important; padding: 0; display: flex; align-items: center; overflow: hidden; }
+    #topnav .logo { background: none; float: left; width: auto; height: 35px; margin: 0 20px 0 0 !important; padding: 0; display: flex; align-items: center; overflow: hidden; }
     #topnav .logo img { height: 24px; width: auto; margin: 0 !important; display: block; }
-
-    /* Tighter header: smaller gaps between nav / search / account items */
-    #topnav .site-nav li a { padding-left: 8px; padding-right: 8px; }
-    #topnav .account-nav li a,
-    #topnav .account-nav .dropdown-toggle { padding-left: 8px; padding-right: 8px; }
-    #topnav .search { margin-left: 8px; margin-right: 8px; }
-    
     #profile-bio, #profile-status { white-space: pre-wrap; word-wrap: break-word; }
 
     /* @mentions in profile text and studio descriptions link to Screleted profiles. */
@@ -143,7 +136,6 @@
     .acct .del { color: #d9534f; font-weight: bold; }
     .acct .unk { color: #888; font-weight: bold; }
     .acct small { color: #888; }
-
 
     /* ---------- Studio pages (matches Scratch's old-style studio layout) ---------- */
     #studio-view { display: none; }
@@ -315,7 +307,6 @@
           </div>
         </div>
       </div>
-
 
       <!-- Studio page; uses the existing site header above it. -->
       <div id="studio-view">
@@ -523,6 +514,11 @@
         return null;
       }
 
+      function pageFromUrl() {
+        const n = parseInt(new URLSearchParams(location.search).get('page'), 10);
+        return Number.isFinite(n) && n > 1 ? n : 1;
+      }
+
       function studioTabFromUrl() {
         const q = new URLSearchParams(location.search).get('tab');
         if (q === 'curators') return 'curators';
@@ -530,15 +526,19 @@
         return parts[0] === 'studios' && parts[2] === 'curators' ? 'curators' : 'projects';
       }
 
-      function setUrl(username, sectionKey, mode) {
+      function setUrl(username, sectionKey, mode, page) {
         if (mode === 'none') return;
         try {
           let target = BASE + 'users/' + encodeURIComponent(username);
           const sec = sectionKey && SECTIONS[sectionKey] ? sectionKey : null;
-          if (sec) target += '/' + sec;
+          if (sec) {
+            target += '/' + sec;
+            if (page > 1) target += '?page=' + page;
+          }
+          const current = location.pathname + location.search;
           if (mode === 'replace') history.replaceState({}, '', target);
-          else if (location.pathname !== target || location.search) history.pushState({}, '', target);
-          document.title = username + (sec ? ' – ' + SECTIONS[sec].fullTitle : '') + ' on screleted';
+          else if (current !== target) history.pushState({}, '', target);
+          document.title = username + (sec ? ' – ' + SECTIONS[sec].fullTitle + (page > 1 ? ' – page ' + page : '') : '') + ' on screleted';
         } catch (e) { /* e.g. opened from file:// */ }
       }
 
@@ -1160,12 +1160,12 @@
         return true;
       }
 
-      async function loadProfile(username, urlMode = 'push', section = null) {
+      async function loadProfile(username, urlMode = 'push', section = null, page = 1) {
         if (!username) return;
         currentStudioId = null;
         $('studio-view').style.display = 'none';
         $('profile-view').style.display = '';
-        setUrl(username, section, urlMode);
+        setUrl(username, section, urlMode, page);
         const token = ++loadToken;
         // Warm the cache: these only need the name, so they run alongside /users/NAME.
         Object.keys(SECTIONS).forEach(k =>
@@ -1192,7 +1192,7 @@
           alertBox.innerHTML = '';
           currentUser = user.username;
           $('search-input').value = user.username;
-          setUrl(user.username, section, 'replace');
+          setUrl(user.username, section, 'replace', page);
 
           // Username: links to the Scratch profile, but looks like plain text.
           const userLink = `https://scratch.mit.edu/users/${encodeURIComponent(user.username)}/`;
@@ -1247,7 +1247,7 @@
           }
 
           // If the URL asked for a section (e.g. /griffpatch/favorites), open it now.
-          if (section && SECTIONS[section]) showFull(section, 1, 'none');
+          if (section && SECTIONS[section]) showFull(section, page, 'none');
 
         } catch (err) {
           if (token !== loadToken) return;
@@ -1256,7 +1256,6 @@
           console.error('Profile load error:', err);
         }
       }
-
 
       // ---------- Studio pages ----------
       function studioUpdatedText(value) {
@@ -1648,7 +1647,6 @@
         }
       }
 
-
       // ---------- Recover projects through favorites ----------
       // Many users favorite their own projects. Scan the favorites list and collect
       // any project whose author id matches this user, so it can be shown under
@@ -1842,7 +1840,7 @@
       async function showFull(key, page, urlMode = 'push') {
         if (!currentUser) return;
         full = { key, page };
-        if (urlMode !== 'none') setUrl(currentUser, key, urlMode);
+        if (urlMode !== 'none') setUrl(currentUser, key, urlMode, page);
         const sec = SECTIONS[key];
         const size = pageSizeFor(key);
         const myKey = key, myPage = page, myUser = currentUser;
@@ -1876,6 +1874,8 @@
           catch (e) { list = null; }
           if (stale()) return;
           if (list == null) list = mergedProjects();
+          const lastPage = Math.max(1, Math.ceil(list.length / size));
+          if (page > lastPage) { showFull(key, lastPage, 'replace'); return; }   // stale ?page=N
           items = list.slice((page - 1) * size, page * size);
           totalOverride = list.length;
         } else {
@@ -2091,9 +2091,10 @@
         const fromUrl = userFromUrl();
         const initial = fromUrl || DEFAULT_USER;
         const section = fromUrl ? sectionFromUrl() : null;
+        const page = section ? pageFromUrl() : 1;
         if (initial) {
           $('search-input').value = initial;
-          loadProfile(initial, fromUrl ? 'replace' : 'none', section);
+          loadProfile(initial, fromUrl ? 'replace' : 'none', section, page);
         }
       };
       start();
@@ -2107,12 +2108,13 @@
         }
         const u = userFromUrl() || DEFAULT_USER;
         const section = sectionFromUrl();
+        const page = section ? pageFromUrl() : 1;
         if (!u) return;
         $('search-input').value = u;
         if (u !== currentUser) {
-          loadProfile(u, 'none', section);
+          loadProfile(u, 'none', section, page);
         } else if (section) {
-          showFull(section, 1, 'none');
+          showFull(section, page, 'none');
         } else {
           hideFull('none');
         }
