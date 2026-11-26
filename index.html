@@ -60,8 +60,6 @@
     #content a.pname:hover { text-decoration: underline; }
     #profile-data .loading-img { display: none; }
     .error-message { color: #d9534f; padding: 10px; font-weight: bold; }
-    #topnav .logo { background: none; float: left; width: auto; height: 35px; margin: 0 20px 0 0 !important; padding: 0; display: flex; align-items: center; overflow: hidden; }
-    #topnav .logo img { height: 24px; width: auto; margin: 0 !important; display: block; }
     #profile-bio, #profile-status { white-space: pre-wrap; word-wrap: break-word; }
 
     /* @mentions in profile text and studio descriptions link to Screleted profiles. */
@@ -122,7 +120,6 @@
     .card.user { width: 60px; }
     .card.user img { width: 60px; height: 60px; }
     .card.user .name { font-size: 13px; }
-    .logo-fallback { color: #fff; font-weight: 900; font-size: 22px; letter-spacing: 1px; line-height: 40px; }
     /* ---- Full "View all" pages (modelled on scratch.mit.edu list pages) ---- */
     #full-head { display: flex; align-items: center; gap: 14px; height: auto; padding: 16px 20px; }
     #full-avatar { width: 55px; height: 55px; display: block; background: #f2f2f2; }
@@ -266,27 +263,22 @@
     <div id="topnav">
       <div class="innerwrap">
         <div class="container">
-          <a href="https://scratch.mit.edu/" class="logo">
-            <img id="site-logo" alt="Scratch">
-          </a>
+          <a href="https://scratch.mit.edu/" class="logo"><span class="scratch"></span></a>
           <ul class="site-nav">
-            <li><a href="https://scratch.mit.edu/projects/editor/">Create</a></li>
-            <li><a href="https://scratch.mit.edu/explore/projects/all">Explore</a></li>
-            <li><a href="https://scratch.mit.edu/discuss/">Discuss</a></li>
-            <li><a href="https://scratch.mit.edu/about/">About</a></li>
-            <li class="last"><a href="https://scratch.mit.edu/help/">Help</a></li>
+            <li><a id="project-create" href="https://scratch.mit.edu/projects/editor/?tip_bar=home">Create</a></li><li><a href="https://scratch.mit.edu/explore/projects/all">Explore</a></li><li><a href="https://scratch.mit.edu/discuss/">Discuss</a></li><li><a href="https://scratch.mit.edu/about/">About</a></li><li class="last"><a href="https://scratch.mit.edu/help/">Help</a></li>
           </ul>
-          <form class="search" id="profile-search-form" style="position: relative;">
-            <input type="submit" class="glass" value="" style="cursor: pointer;">
-            <input id="search-input" type="text" placeholder="Search username" name="q" value="kaj">
+
+          <form class="search" id="profile-search-form">
+            <input type="submit" class="glass" value="">
+
+            <input id="search-input" type="text" placeholder="Search" name="q" value="kaj">
           </form>
+
           <ul class="account-nav">
-            <li class="join-scratch"><a href="https://scratch.mit.edu/join">Join Scratch</a></li>
-            <li id="login-dropdown" class="sign-in dropdown">
-              <span data-toggle="dropdown" class="dropdown-toggle"><span>Sign in</span></span>
-            </li>
+            <li class="join-scratch" data-control="registration"><span class=""><span>Join Scratch</span></span></li><li id="login-dropdown" class="sign-in dropdown"><span data-toggle="dropdown" class="dropdown-toggle"><span>Sign in</span></span></li><li data-control="modal-login" class="sign-in mobile"><span>Sign in</span></li>
           </ul>
         </div>
+        <iframe class="iframeshim" frameborder="0" scrolling="no"></iframe>
       </div>
     </div>
 
@@ -1919,46 +1911,6 @@
         }
       }
 
-      // ---------- Header logo (tries several URLs, falls back to text) ----------
-      (function() {
-        const img = $('site-logo');
-        const candidates = [
-          'https://cdn.scratch.mit.edu/scratchr2/static/__9df8705ead146d0ff4b9ef4e86644347__/images/logo_sm.png',
-          'https://cdn.scratch.mit.edu/scratchr2/static/__9df8705ead146d0ff4b9ef4e86644347__/images/logo.png',
-          'https://cdn.scratch.mit.edu/scratchr2/static/__0b77027edd8c5758537a8bc19a9ae817__/images/logo_sm.png',
-          'https://scratch.mit.edu/images/logo_sm.png',
-        ];
-        let i = 0;
-        function next() {
-          if (i < candidates.length) { img.src = candidates[i++]; return; }
-          const span = document.createElement('span');
-          span.className = 'logo-fallback';
-          span.textContent = 'SCRATCH';
-          img.replaceWith(span);
-        }
-        img.onerror = next;
-        next();
-      })();
-
-      // Size the logo to the actual header bar so it always sits fully inside it
-      function fitLogo() {
-        const bar = $('topnav');
-        const logo = bar.querySelector('.logo');
-        const img = $('site-logo');
-        const h = bar.offsetHeight > 20 ? bar.offsetHeight : 35;
-        logo.style.height = h + 'px';
-        if (img) img.style.height = Math.round(h * 0.68) + 'px';
-      }
-      fitLogo();
-      window.addEventListener('load', fitLogo);
-      let fitQueued = false;
-      window.addEventListener('resize', () => {
-        if (fitQueued) return;
-        fitQueued = true;
-        requestAnimationFrame(() => { fitQueued = false; fitLogo(); });
-      });
-      $('site-logo') && $('site-logo').addEventListener('load', fitLogo);
-
       // ---------- Header colour (purple -> #0F8BC0) ----------
       // Rewrites only the colour values of Scratch's own #topnav rules, so the shapes, dividers
       // and hover states stay exactly as Scratch draws them. The result is cached (see <head>).
@@ -2067,6 +2019,11 @@
         if (userLink && userLink.dataset.user) { e.preventDefault(); loadProfile(userLink.dataset.user); window.scrollTo(0, 0); }
       });
       $('full-back').addEventListener('click', () => hideFull('push'));
+
+      document.querySelector('#topnav .join-scratch').addEventListener('click', () => {
+        window.location.href = 'https://scratch.mit.edu/join';
+      });
+
 
       $('search-input').addEventListener('keydown', function(e) {
         if (e.key === 'Enter') {
