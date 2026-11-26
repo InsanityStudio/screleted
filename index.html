@@ -1889,6 +1889,39 @@
         }
       }
 
+      // ---------- Header search width ----------
+      // Scratch's header stretches the search bar so "Join Scratch / Sign in" end flush with the
+      // right edge of the container. Measure the leftover space and give it to the search bar.
+      function fitSearch() {
+        const c = document.querySelector('#topnav .container');
+        const form = c && c.querySelector('.search');
+        const inp = $('search-input');
+        const acct = c && c.querySelector('.account-nav');
+        if (!c || !form || !inp || !acct) return;
+        form.style.width = '';
+        inp.style.width = '';
+        if (window.innerWidth < 768) return;                       // mobile header keeps Scratch's own layout
+        const cs = getComputedStyle(c);
+        const limit = c.getBoundingClientRect().right - (parseFloat(cs.paddingRight) || 0);
+        const gap = Math.floor(limit - acct.getBoundingClientRect().right);
+        if (gap < 1) return;
+        const w = el => parseFloat(getComputedStyle(el).width) || 0;
+        const fw = w(form), iw = w(inp);
+        const apply = g => { form.style.width = (fw + g) + 'px'; inp.style.width = (iw + g) + 'px'; };
+        apply(gap);
+        // If that wrapped the account links onto a second line, back off until they fit
+        for (let g = gap, n = 0; n < 40 && acct.offsetTop > form.offsetTop + 10; n++) { g -= 4; apply(Math.max(0, g)); }
+      }
+      fitSearch();
+      window.addEventListener('load', fitSearch);
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitSearch);
+      let fitSearchQueued = false;
+      window.addEventListener('resize', () => {
+        if (fitSearchQueued) return;
+        fitSearchQueued = true;
+        requestAnimationFrame(() => { fitSearchQueued = false; fitSearch(); });
+      });
+
       // ---------- Header colour (purple -> #0F8BC0) ----------
       // Rewrites only the colour values of Scratch's own #topnav rules, so the shapes, dividers
       // and hover states stay exactly as Scratch draws them. The result is cached (see <head>).
