@@ -259,17 +259,31 @@
             <li><a id="project-create" href="https://scratch.mit.edu/projects/editor/?tip_bar=home">Create</a></li><li><a href="https://scratch.mit.edu/explore/?date=this_month">Explore</a></li><li><a href="https://scratch.mit.edu/discuss/">Discuss</a></li><li><a href="https://scratch.mit.edu/about/">About</a></li><li class="last"><a href="https://scratch.mit.edu/help/">Help</a></li>
           </ul>
 
-          <form class="search" id="profile-search-form" style="position: relative;">
+          <form class="search" id="profile-search-form" action="https://scratch.mit.edu/search/google_results/" method="get">
             <input type="submit" class="glass" value="" style="cursor: pointer;">
 
             <input id="search-input" type="text" placeholder="Search" name="q" value="kaj">
+
+            <input type="hidden" name="date" value="anytime">
+            <input type="hidden" name="sort_by" value="datetime_shared">
+            <input type="hidden" name="refinement" value="Forums">
           </form>
 
           <ul class="account-nav">
               <li class="join-scratch" data-control="registration"><span class=""><span>Join Scratch</span></span></li><li id="login-dropdown" class="sign-in dropdown"><span data-toggle="dropdown" class="dropdown-toggle"><span>Sign in</span></span><div class="popover bottom dropdown-menu"><div class="arrow"></div><div class="popover-content"><form method="post" id="login" action="#"><label for="username">Username</label><input type="text" id="login_dropdown_username" name="username" maxlength="30" class="wide username"><label for="password" class="password">Password</label><input type="password" name="password" class="wide password"><div class="ajax-loader" style="display:none; float: left;"></div><button type="submit">Sign in</button><span class="forgot-password"><a href="https://scratch.mit.edu/accounts/password_reset/">Forgot password?</a></span><div class="error"></div></form></div></div></li><li data-control="modal-login" class="sign-in mobile"><span>Sign in</span></li>
           </ul>
+
+          <script type="text/template" id="template-account-nav-logged-out">
+          <ul class="account-nav" >
+              <li class="join-scratch" data-control="registration"><span class=""><span>Join Scratch</span></span></li><li id="login-dropdown" class="sign-in dropdown"><span data-toggle="dropdown" class="dropdown-toggle"><span>Sign in</span></span><div class="popover bottom dropdown-menu"><div class="arrow"></div><div class="popover-content" ><form method="post" id="login" action="#"><label for="username">Username</label><input type="text" id="login_dropdown_username" name="username" maxlength="30" class="wide username" /><label for="password" class="password">Password</label><input type="password" name="password" class="wide password" /><div class="ajax-loader" style="display:none; float: left;"></div><button type="submit">Sign in</button><span class="forgot-password"><a href="/accounts/password_reset/">Forgot password?</a></span><div class="error"></div></form></div></div></li><li data-control="modal-login" class="sign-in mobile"><span>Sign in</span></li>
+          </ul>
+          </script>
+          <script type="text/template" id="template-account-nav-logged-in">
+          <ul class="account-nav logged-in"><li class="messages"><a title="messages - updates and notices" href="/messages/" class="messages-icon"><span class="notificationsCount none">0</span></a></li><li class="my-stuff"><a title="my stuff - manage projects and studios" href="/mystuff/" class="mystuff-icon"></a></li><li class="logged-in-user dropdown"><span class="user-name dropdown-toggle" data-toggle="dropdown"><img class="user-icon" src="<%= LOGGED_IN_USER.model.thumbnail_url %>" width="24" height="24"><%= LOGGED_IN_USER.model.username_truncated %><span class="caret"></span></span><div class="dropdown-menu blue" ><ul class="user-nav"><li><a href="<%= LOGGED_IN_USER.model.profile_url %>">Profile</a></li><li><a href="/mystuff/">My Stuff</a></li><% if (LOGGED_IN_USER.model.is_educator){ %><li><a href="/educators/classes/">My Classes</a></li><% } %><li><a href="/accounts/settings/">Account settings</a></li><li id="logout" class="logout divider"><form method="post" action="/accounts/logout/"><input type='hidden' name='csrfmiddlewaretoken' value='TQr7o0WOayPhqJk1Com0txuO5tccdwkx' /><input type="submit" value="Sign out"></form></li></ul></div></li></ul>
+          </script>
+          <script type="text/javascript" src="https://cdn.scratch.mit.edu/scratchr2/static/__3e6a9ef6e3997fdf1c29222cb791be31__/js/account-nav.js"></script>
         </div>
-        <iframe class="iframeshim" frameborder="0" scrolling="no"></iframe>
+        <iframe class="iframeshim" frameborder="0" scrolling="no" data-ruffle-polyfilled=""></iframe>
       </div>
     </div>
 
