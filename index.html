@@ -118,86 +118,100 @@
     .acct small { color: #888; }
 
 
-    /* ---------- Studio pages ---------- */
+    /* ---------- Studio pages (matches Scratch's old-style studio layout) ---------- */
     #studio-view { display: none; }
     #studio-view .studio-shell {
-      box-sizing: border-box; display: grid; grid-template-columns: 240px minmax(0, 1fr);
-      max-width: 1020px; margin: 25px auto 35px; padding: 0 30px; align-items: stretch;
+      position: relative; box-sizing: border-box; display: grid; grid-template-columns: 240px minmax(0, 1fr);
+      max-width: 1020px; margin: 15px auto 35px; padding: 0 40px;
     }
     #studio-view .studio-info, #studio-view .studio-tabs {
       box-sizing: border-box; min-width: 0; background: #f7f7f7; border: 1px solid #e0e0e0;
-      box-shadow: 0 2px 3px rgba(0,0,0,.18); color: #322f31;
+      box-shadow: 0 2px 3px rgba(0,0,0,.27); color: #322f31;
     }
-    #studio-view .studio-info {
-      display: flex; flex-direction: column; gap: 12px; padding: 18px 13px;
-      border-right: 0; border-radius: 8px 0 0 8px;
-    }
+    /* Title and follower count sit in the header strip above the tabs */
     #studio-view .studio-title {
-      color: #554747; font-size: 22px; font-weight: bold; line-height: 26px;
-      overflow-wrap: anywhere;
+      position: absolute; top: 8px; left: 301px; width: calc(100% - 532px); box-sizing: border-box;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      color: #554747; font-size: 22px; font-weight: bold; line-height: 26px; text-shadow: 0 1px #fff;
+    }
+    #studio-view .studio-follow-count {
+      position: absolute; top: 8px; right: 61px; padding-right: 11px; max-width: 150px;
+      color: #666; font-size: 11px; font-weight: bold; line-height: 20px; white-space: nowrap;
+    }
+    /* Info box: starts below the header strip and joins the tabs box on its right */
+    #studio-view .studio-info {
+      display: flex; flex-direction: column; gap: 5px; margin-top: 66px; padding: 20px 14px;
+      border-right: 0; border-radius: 10px 0 0 10px;
     }
     #studio-view .studio-image {
       display: block; width: 100%; height: 141px; box-sizing: border-box; object-fit: cover;
-      padding: 5px; background: #fff; border: 1px solid #ccc;
+      padding: 5px; background: #fff; border: 1px solid #ccc; border-radius: 0;
     }
+    #studio-view .studio-updated { color: #322f31; font-size: 13px; line-height: 20px; }
     #studio-view .studio-description {
-      color: #322f31; font-size: 13px; line-height: 20px; white-space: pre-wrap;
-      overflow-wrap: anywhere;
-    }
-    #studio-view .studio-info-footer-stats {
-      margin-top: auto; padding-top: 10px; border-top: 1px solid #e0e0e0;
-      color: #666; font-size: 12px; line-height: 20px;
+      max-height: 377px; overflow-y: auto; padding: 0; color: #322f31; font-size: 13px; line-height: 20px;
+      white-space: pre-wrap; overflow-wrap: anywhere;
     }
     #studio-view .studio-tabs {
-      display: flex; flex-direction: column; min-height: 500px; border-radius: 0 8px 8px 0;
-      background: #f7f7f7;
+      display: flex; flex-direction: column; padding-top: 46px; border-radius: 10px 10px 0 0;
+      box-shadow: 0 2px 3px rgba(0,0,0,.27), inset 0 1px 0 #fff;
     }
     #studio-view .studio-tab-nav {
-      display: flex; align-items: end; gap: 3px; min-height: 45px; padding: 0 18px;
-      border-bottom: 1px solid #e0e0e0;
+      display: flex; flex-wrap: wrap; padding: 0 20px; border-bottom: 1px solid #e0e0e0;
     }
-    #studio-view .studio-tab-nav span {
-      display: inline-block; padding: 10px 13px 8px; border: 1px solid #ccc; border-bottom-color: #f7f7f7;
-      border-radius: 5px 5px 0 0; background: #f7f7f7; color: #666; font-size: 13px; font-weight: bold;
-      position: relative; top: 1px;
+    #studio-view .studio-tab {
+      display: flex; align-items: center; box-sizing: border-box; height: 29px; padding: 0 10px;
+      border: 1px solid transparent; border-radius: 5px 5px 0 0;
+      color: #666; font-size: 13px; font-weight: bold; text-decoration: none; cursor: pointer;
     }
-    #studio-view .studio-projects { padding: 18px 20px 22px; }
-    #studio-view .studio-header-container { padding: 0 0 12px; }
-    #studio-view .studio-header-container h2 { margin: 0; color: #554747; font-size: 22px; line-height: 26px; }
+    #studio-view a.studio-tab:hover { border-color: #ddd; border-bottom-color: transparent; box-shadow: inset 0 1px 0 #fff; text-decoration: none; }
+    #studio-view .studio-tab.active { background: #fff; border-color: #ccc; border-bottom-color: transparent; cursor: default; }
+    #studio-view .studio-tab-icon {
+      display: inline-block; width: 24px; height: 17px; margin-right: 2px; opacity: .7;
+      background: url("https://cdn.scratch.mit.edu/scratchr2/static/images/icons_sm.png") no-repeat -15px -313px;
+    }
+    #studio-view .studio-tab-icon.comments { background-position: -15px -18px; }
+    #studio-view .studio-tab-icon.curators { background-position: -15px -366px; }
+    #studio-view .studio-tab-icon.activity { background-position: -15px -478px; }
+    #studio-view .studio-projects { flex: 1 1 auto; padding: 0 20px 22px; background: #fff; color: #575e75; }
+    #studio-view .studio-header-container { padding: 18px 0 22px; }
+    #studio-view .studio-header-container h2 { margin: 0; color: #554747; font-size: 18px; line-height: normal; }
     #studio-view .studio-projects-grid {
-      display: grid; grid-template-columns: repeat(auto-fill, minmax(145px, 1fr)); gap: 22px 16px;
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 36px 20px;
     }
     #studio-view .studio-project-tile { min-width: 0; background: transparent; }
     #studio-view .studio-project-image-link { display: block; line-height: 0; }
     #studio-view .studio-project-image {
       display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; box-sizing: border-box;
-      background: #f2f2f2; border: 1px solid #ddd;
+      background: #f7f7f7; border: 1px solid #ddd;
     }
-    #studio-view .studio-project-bottom { display: flex; align-items: center; gap: 8px; padding-top: 6px; min-width: 0; }
-    #studio-view .studio-project-avatar { width: 36px; height: 36px; flex: 0 0 36px; object-fit: cover; border: 1px solid #ddd; }
-    #studio-view .studio-project-info { display: flex; flex-direction: column; justify-content: center; min-width: 0; line-height: 19px; }
+    #studio-view .studio-project-bottom { display: flex; align-items: center; gap: 8px; margin-top: 20px; min-width: 0; }
+    #studio-view .studio-project-bottom > a { display: block; line-height: 0; flex: 0 0 40px; }
+    #studio-view .studio-project-avatar { display: block; width: 40px; height: 40px; box-sizing: border-box; object-fit: cover; border: 1px solid #ddd; border-radius: 0; }
+    #studio-view .studio-project-info { display: flex; flex-direction: column; justify-content: center; min-width: 0; line-height: 20px; }
     #studio-view .studio-project-title, #studio-view .studio-project-username {
-      display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-      font-size: 13px; text-decoration: none;
+      display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-decoration: none;
     }
-    #studio-view .studio-project-title { color: #855cd6; }
-    #studio-view .studio-project-username { color: #575e75; }
+    #studio-view .studio-project-title { margin-bottom: 5px; color: #855cd6; font-size: 14px; font-weight: 500; }
+    #studio-view .studio-project-username { color: #322f31; font-size: 13px; font-weight: normal; }
     #studio-view .studio-project-username:hover, #studio-view .studio-project-title:hover { text-decoration: underline; }
     #studio-view .studio-projects-message { grid-column: 1 / -1; padding: 16px 0; color: #888; font-size: 13px; font-style: italic; }
-    #studio-view .studio-grid-load-more { padding: 18px 0 0; text-align: center; }
+    #studio-view .studio-grid-load-more { padding: 26px 0 0; text-align: center; }
     #studio-view .studio-grid-load-more button {
-      height: 32px; padding: 0 12px; border: 1px solid #999; border-radius: 4px;
-      background: linear-gradient(#fff, #ccc); color: #666; font-size: 13px; cursor: pointer;
+      height: 32px; padding: 0 10px; border: 1px solid #999; border-radius: 4px;
+      background: linear-gradient(#fff, #ccc); color: #666; font-size: 13px; line-height: 30px;
+      text-shadow: 0 1px #fff; cursor: pointer;
     }
     #studio-view .studio-grid-load-more button:hover { background: #e6e6e6; }
     #studio-view .studio-alert { padding: 12px 20px 0; color: #d9534f; font-weight: bold; font-size: 13px; }
     @media (max-width: 767px) {
-      #studio-view .studio-shell { grid-template-columns: minmax(0, 1fr); gap: 14px; margin-top: 18px; padding: 0 12px; }
-      #studio-view .studio-info { border-right: 1px solid #e0e0e0; border-radius: 8px; }
-      #studio-view .studio-image { max-width: 300px; }
-      #studio-view .studio-tabs { min-height: 0; border-radius: 8px; }
-      #studio-view .studio-projects { padding: 16px 13px 20px; }
-      #studio-view .studio-projects-grid { grid-template-columns: repeat(auto-fill, minmax(125px, 1fr)); gap: 18px 12px; }
+      #studio-view .studio-shell { grid-template-columns: minmax(0, 1fr); gap: 20px; margin-top: 15px; padding: 0 12px; }
+      #studio-view .studio-title { position: static; width: auto; text-align: center; }
+      #studio-view .studio-follow-count { position: static; max-width: none; padding: 0; text-align: center; }
+      #studio-view .studio-info { margin-top: 0; border-right: 1px solid #e0e0e0; border-radius: 10px; }
+      #studio-view .studio-tabs { padding-top: 7px; }
+      #studio-view .studio-projects { padding: 0 13px 20px; }
+      #studio-view .studio-projects-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 24px 12px; }
     }
 
   </style>
@@ -252,18 +266,20 @@
       <div id="studio-view">
         <div class="studio-alert" id="studio-alert"></div>
         <main class="studio-shell">
+          <div class="studio-title" id="studio-title">Loading studio…</div>
+          <div class="studio-follow-count"><span id="studio-followers">—</span> followers</div>
           <aside class="studio-info">
-            <div class="studio-title" id="studio-title">Loading studio…</div>
             <img class="studio-image" id="studio-image" alt="Studio cover">
+            <div class="studio-updated">Updated <span id="studio-updated">Unknown</span></div>
             <div class="studio-description" id="studio-description"></div>
-            <div class="studio-info-footer-stats">
-              <div>Updated <span id="studio-updated">Unknown</span></div>
-              <div><span id="studio-followers">—</span> followers</div>
-              <div><span id="studio-project-count">—</span> projects</div>
-            </div>
           </aside>
           <section class="studio-tabs">
-            <div class="studio-tab-nav"><span>Projects</span></div>
+            <div class="studio-tab-nav">
+              <span class="studio-tab active"><span class="studio-tab-icon"></span>Projects&nbsp;<span class="tab-count">(<span id="studio-project-count">—</span>)</span></span>
+              <a class="studio-tab" data-tab="comments" href="https://scratch.mit.edu/studios/" target="_blank" rel="noopener"><span class="studio-tab-icon comments"></span>Comments</a>
+              <a class="studio-tab" data-tab="curators" href="https://scratch.mit.edu/studios/" target="_blank" rel="noopener"><span class="studio-tab-icon curators"></span>Curators</a>
+              <a class="studio-tab" data-tab="activity" href="https://scratch.mit.edu/studios/" target="_blank" rel="noopener"><span class="studio-tab-icon activity"></span>Activity</a>
+            </div>
             <div class="studio-projects">
               <div class="studio-header-container"><h2>Projects</h2></div>
               <div class="studio-projects-grid" id="studio-projects-grid">
@@ -1375,6 +1391,9 @@
         $('studio-updated').textContent = 'Unknown';
         $('studio-followers').textContent = '—';
         $('studio-project-count').textContent = '—';
+        document.querySelectorAll('.studio-tab[data-tab]').forEach(a => {
+          a.href = 'https://scratch.mit.edu/studios/' + encodeURIComponent(id) + '/' + a.dataset.tab;
+        });
         $('studio-projects-grid').innerHTML = '<div class="studio-projects-message">Loading projects…</div>';
         $('studio-load-more-wrap').style.display = 'none';
         window.scrollTo(0, 0);
