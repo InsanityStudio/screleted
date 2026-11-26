@@ -18,6 +18,7 @@
       var q = [];
       if (route[0] === 'studios' && /^\d+$/.test(route[1] || '')) {
         q.push('studio=' + encodeURIComponent(route[1]));
+        if (route[2] === 'curators') q.push('tab=curators');
       } else if (route[0] === 'users' && route[1]) {
         q.push('user=' + encodeURIComponent(dec(route[1])));
         if (route[2]) q.push('section=' + encodeURIComponent(dec(route[2])));
